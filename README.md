@@ -109,15 +109,14 @@ artifacts/                 metrics.json + backtest predictions used by the Model
 tests/                     pipeline, model and API tests
 ```
 
-## AI assistants and external APIs (disclosure)
+## AI disclosure
 
-| Tool / service | How it was used |
+| Tool | Used for |
 |---|---|
-| **Claude (Anthropic), Claude Opus 5.5** | Planning, research on dengue lag evidence and early-warning systems, the design prototype (Claude Design), and drafting the code, tests and documentation. The team reviewed and ran all of it. |
-| **Open-Meteo Forecast API** (`api.open-meteo.com`, free, no key, CC BY 4.0) | Optional live-weather mode only. One request per 6 h covers all cities. Not used for training. |
-| *(team: add any other AI tools you used, e.g. ChatGPT, Copilot, Gemini)* | |
+| **Claude (Anthropic)** | Planning, research, and drafting code, tests and docs. The team reviewed, ran and tested everything. |
+| **Open-Meteo API** | Optional live-weather mode only; not used for training. |
 
-No LLM is called at runtime. Model training uses only the dataset provided by the organisers. Open-source libraries: deck.gl (MIT), Natural Earth outlines (public domain), FastAPI, LightGBM, scikit-learn, pandas.
+No AI model runs inside the app, and the model is trained only on the organisers' dataset. Bundled open-source assets: deck.gl (MIT) and Natural Earth outlines (public domain).
 
 ## Team TRIGUN
 
