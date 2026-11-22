@@ -4,6 +4,10 @@
 
 ## 1. System data flow
 
+![System data flow: offline training lane and online request lane](docs/architecture-flow.png)
+
+<details><summary>Same diagram as Mermaid source (renders on github.com)</summary>
+
 ```mermaid
 flowchart LR
     A[Hackathon dataset<br/>weekly ward x weather x cases<br/>data/dengue_weather_wards.csv] --> B[load_raw<br/>schema check, per-ward gap fill]
@@ -20,6 +24,8 @@ flowchart LR
     API --> U[Web app web/<br/>deck.gl 3D ward map, ward panel,<br/>Monsoon Simulator, season replay,<br/>heatmap, hospitals, EN/BN]
     CSV[User CSV<br/>partial / short] --> UP[src/upload.py<br/>column mapping, daily to weekly] --> API
 ```
+
+</details>
 
 Training runs offline once, in about 2.5 minutes on a laptop CPU (standard + robust models). The API server only **loads** the serialized bundle and runs inference on request: all 60 wards × 3 horizons take about 50–70 ms, and a what-if scenario for every ward about 0.4 s. The browser client is plain HTML/JS with deck.gl vendored in the repo, so there is no build step and no Node.js.
 

@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 610" width="1300" height="610" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .t{font-size:15px;font-weight:600;fill:#0F172A}
+      .s{font-size:12.5px;fill:#475569}
+      .lane{font-size:12px;font-weight:700;letter-spacing:.08em;fill:#64748B}
+      .lbl{font-size:11.5px;fill:#64748B;font-style:italic}
+      .e{fill:none;stroke:#475569;stroke-width:1.6;marker-end:url(#ar)}
+      .src{fill:#F1F5F9;stroke:#94A3B8;stroke-width:1.4}
+      .ext{fill:#F1F5F9;stroke:#94A3B8;stroke-width:1.4;stroke-dasharray:5 4}
+      .proc{fill:#EEF2FF;stroke:#6366F1;stroke-width:1.4}
+      .store{fill:#FEF3C7;stroke:#D97706;stroke-width:1.4}
+      .ui{fill:#CCFBF1;stroke:#0D9488;stroke-width:1.6}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1300" height="610" fill="#FFFFFF"/>
+
+  <!-- lanes -->
+  <rect x="8" y="10" width="1284" height="245" rx="14" fill="#F8F7FF" stroke="#E0E7FF"/>
+  <text x="24" y="34" class="lane">OFFLINE · TRAINING, RUN ONCE (~2.5 MIN ON A LAPTOP CPU)</text>
+  <rect x="8" y="270" width="1284" height="330" rx="14" fill="#F3FDFD" stroke="#CCFBF1"/>
+  <text x="24" y="294" class="lane">ONLINE · EVERY REQUEST (MILLISECONDS)</text>
+
+  <!-- OFFLINE nodes -->
+  <rect x="20" y="70" width="200" height="120" rx="10" class="src"/>
+  <text x="120" y="105" text-anchor="middle" class="t">Hackathon dataset</text>
+  <text x="120" y="128" text-anchor="middle" class="s">dengue_weather_wards.csv</text>
+  <text x="120" y="147" text-anchor="middle" class="s">weekly · 60 wards</text>
+  <text x="120" y="166" text-anchor="middle" class="s">weather + cases + vulnerability</text>
+
+  <rect x="250" y="85" width="190" height="90" rx="10" class="proc"/>
+  <text x="345" y="117" text-anchor="middle" class="t">load_raw()</text>
+  <text x="345" y="139" text-anchor="middle" class="s">schema check</text>
+  <text x="345" y="157" text-anchor="middle" class="s">per-ward gap fill</text>
+
+  <rect x="470" y="60" width="240" height="140" rx="10" class="proc"/>
+  <text x="590" y="88" text-anchor="middle" class="t">Lag feature pipeline</text>
+  <text x="590" y="110" text-anchor="middle" class="s">groupby(ward_id), past weeks only</text>
+  <text x="590" y="129" text-anchor="middle" class="s">rain lags 0–12 wk, rolling 2/4/8/12</text>
+  <text x="590" y="148" text-anchor="middle" class="s">temp / humidity lags, DTR, |T−29 °C|</text>
+  <text x="590" y="167" text-anchor="middle" class="s">case lags, vulnerability × rain</text>
+  <text x="590" y="186" text-anchor="middle" class="s">season sin/cos of target week</text>
+
+  <rect x="740" y="60" width="230" height="140" rx="10" class="proc"/>
+  <text x="855" y="88" text-anchor="middle" class="t">train.py</text>
+  <text x="855" y="110" text-anchor="middle" class="s">chronological split on target week</text>
+  <text x="855" y="129" text-anchor="middle" class="s">train ≤2021 · val 22–23 · test 24–25</text>
+  <text x="855" y="148" text-anchor="middle" class="s">LightGBM point + P10/P90, h = 2/3/4</text>
+  <text x="855" y="167" text-anchor="middle" class="s">robust models (feature dropout)</text>
+  <text x="855" y="186" text-anchor="middle" class="s">CQR intervals · alarm calibration</text>
+
+  <!-- artifacts cylinder -->
+  <path d="M1010,62 a125,10 0 0 0 250,0 v58 a125,10 0 0 1 -250,0 z" class="store"/>
+  <ellipse cx="1135" cy="62" rx="125" ry="10" class="store"/>
+  <text x="1135" y="93" text-anchor="middle" class="t">artifacts/</text>
+  <text x="1135" y="113" text-anchor="middle" class="s">metrics.json · backtests</text>
+
+  <!-- bundle cylinder -->
+  <path d="M1010,160 a125,10 0 0 0 250,0 v62 a125,10 0 0 1 -250,0 z" class="store"/>
+  <ellipse cx="1135" cy="160" rx="125" ry="10" class="store"/>
+  <text x="1135" y="191" text-anchor="middle" class="t">models/ bundle (joblib)</text>
+  <text x="1135" y="211" text-anchor="middle" class="s">18 models + endemic channel</text>
+
+  <!-- ONLINE nodes -->
+  <rect x="20" y="320" width="200" height="95" rx="10" class="ext"/>
+  <text x="120" y="350" text-anchor="middle" class="t">Open-Meteo API</text>
+  <text x="120" y="372" text-anchor="middle" class="s">optional live mode</text>
+  <text x="120" y="391" text-anchor="middle" class="s">1 call / 6 h, disk cache</text>
+
+  <rect x="250" y="320" width="190" height="95" rx="10" class="proc"/>
+  <text x="345" y="350" text-anchor="middle" class="t">weekly aggregation</text>
+  <text x="345" y="372" text-anchor="middle" class="s">daily → weekly</text>
+  <text x="345" y="391" text-anchor="middle" class="s">+ climatology padding</text>
+
+  <rect x="20" y="465" width="200" height="85" rx="10" class="src"/>
+  <text x="120" y="497" text-anchor="middle" class="t">User CSV</text>
+  <text x="120" y="519" text-anchor="middle" class="s">partial or short history</text>
+
+  <rect x="250" y="465" width="190" height="85" rx="10" class="proc"/>
+  <text x="345" y="497" text-anchor="middle" class="t">upload.py</text>
+  <text x="345" y="519" text-anchor="middle" class="s">column mapping, robust path</text>
+
+  <rect x="470" y="335" width="240" height="110" rx="10" class="proc"/>
+  <text x="590" y="368" text-anchor="middle" class="t">Same lag features</text>
+  <text x="590" y="390" text-anchor="middle" class="s">computed for week t</text>
+  <text x="590" y="409" text-anchor="middle" class="s">Monsoon Simulator bends</text>
+  <text x="590" y="427" text-anchor="middle" class="s">the last 4 weeks of weather</text>
+
+  <rect x="740" y="335" width="230" height="110" rx="10" class="proc"/>
+  <text x="855" y="368" text-anchor="middle" class="t">Inference engine</text>
+  <text x="855" y="390" text-anchor="middle" class="s">predict.py</text>
+  <text x="855" y="409" text-anchor="middle" class="s">cases t+2..4 · 80% range</text>
+  <text x="855" y="427" text-anchor="middle" class="s">risk tier · SHAP drivers</text>
+
+  <rect x="1010" y="335" width="250" height="110" rx="10" class="proc"/>
+  <text x="1135" y="368" text-anchor="middle" class="t">FastAPI REST API</text>
+  <text x="1135" y="390" text-anchor="middle" class="s">api.py</text>
+  <text x="1135" y="409" text-anchor="middle" class="s">LRU cache per week × scenario</text>
+  <text x="1135" y="427" text-anchor="middle" class="s">/forecast /ward /validation …</text>
+
+  <rect x="1010" y="475" width="250" height="110" rx="12" class="ui"/>
+  <text x="1135" y="506" text-anchor="middle" class="t">Web app (browser)</text>
+  <text x="1135" y="528" text-anchor="middle" class="s">3D ward map · ward panel</text>
+  <text x="1135" y="547" text-anchor="middle" class="s">heatmap · validation dashboard</text>
+  <text x="1135" y="566" text-anchor="middle" class="s">hospitals · EN / বাংলা</text>
+
+  <!-- OFFLINE edges -->
+  <path d="M220,130 H246" class="e"/>
+  <path d="M440,130 H466" class="e"/>
+  <path d="M710,130 H736" class="e"/>
+  <path d="M970,95 H1006" class="e"/>
+  <path d="M970,175 H988 V195 H1006" class="e"/>
+
+  <!-- cross-lane edges -->
+  <path d="M345,175 V305 H585 V331" class="e"/>
+  <text x="360" y="252" class="lbl">replay: observed weeks</text>
+  <path d="M1060,233 V300 H855 V331" class="e"/>
+  <text x="870" y="292" class="lbl">loaded once at start-up</text>
+  <path d="M1260,92 H1280 V390 H1264" class="e"/>
+
+  <!-- ONLINE edges -->
+  <path d="M220,367 H246" class="e"/>
+  <path d="M440,385 H466" class="e"/>
+  <path d="M710,390 H736" class="e"/>
+  <path d="M970,390 H1006" class="e"/>
+  <path d="M220,507 H246" class="e"/>
+  <path d="M440,507 H990 V425 H1006" class="e"/>
+  <path d="M1135,445 V471" class="e"/>
+</svg>
