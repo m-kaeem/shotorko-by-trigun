@@ -4,7 +4,7 @@
 
 ## 1. System data flow
 
-![System data flow: offline training lane and online request lane](docs/architecture-flow.png)
+![System data flow: offline training lane and online request lane](https://raw.githubusercontent.com/m-kaeem/shotorko-by-trigun/main/docs/architecture-flow.png)
 
 <details><summary>Same diagram as Mermaid source (renders on github.com)</summary>
 
