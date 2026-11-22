@@ -4,12 +4,14 @@
 
 *Shotorko* (সতর্ক) means "alert, on guard" in Bangla.
 
+**Live demo:** https://shotorko-by-trigun.onrender.com/ · **Demo video:** [watch on Google Drive](https://drive.google.com/file/d/1qEMGLf551k-3XB1SZB4KWHsLtJW90DJH/view?usp=sharing)
+
 ## Quick start (≈ 1 minute)
 
 Requires **Python 3.10–3.13** and git.
 
 ```bash
-git clone https://github.com/m-kaeem/fuzzy-guacamole.git shotorko && cd shotorko
+git clone https://github.com/m-kaeem/shotorko-by-trigun.git shotorko && cd shotorko
 python -m venv .venv
 # macOS / Linux:
 source .venv/bin/activate
@@ -126,6 +128,8 @@ No AI model runs inside the app, and the model is trained only on the organisers
 | Mohammad Mahiuddin | Lag feature pipeline, robust (missing-data) model, risk tiers, training & chronological validation, REST API |
 | Mohammad Maharul Islam | Hospital readiness layer, "Your data" CSV upload, tests, architecture & model documentation |
 
-Demo video: *(add link)*
+Demo video: https://drive.google.com/file/d/1qEMGLf551k-3XB1SZB4KWHsLtJW90DJH/view?usp=sharing
+
+Live deployment: https://shotorko-by-trigun.onrender.com/
 
 Weather data in live mode: [Open-Meteo.com](https://open-meteo.com/), CC BY 4.0.
