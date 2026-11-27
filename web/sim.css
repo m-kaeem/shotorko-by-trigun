@@ -1,0 +1,31 @@
+/* Shotorko — crew simulator tab (Req 3). Reuses ops.css building blocks. */
+#tab-sim.busy .stat,#tab-sim.busy .ops-table,#tab-sim.busy .sim-svg{opacity:.55;transition:opacity .2s}
+.sim-actions{display:flex;gap:8px;flex-wrap:wrap}
+.sim-auto{border-color:rgba(34,211,238,.6);background:linear-gradient(120deg,rgba(34,211,238,.18),rgba(139,124,246,.18));color:#E0F2FE;font-weight:600}
+.sim-types{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:620px}
+.sim-types>div{display:grid;grid-template-columns:10px 1fr;gap:2px 8px;align-items:center}
+.sim-types i{width:10px;height:10px;border-radius:50%}
+.sim-types small{grid-column:2;color:var(--muted);font-size:12px;line-height:1.4}
+.sim-one{grid-template-columns:minmax(0,420px)}
+.sim-cards .v{font-size:30px}
+.sim-svg{width:100%;height:auto;display:block;margin-top:8px}
+.sim-tl{fill:#E8EEF9;font-size:12px;font-weight:700}
+.sim-tx{fill:#94A3B8;font-size:12px}
+.sim-method{line-height:1.6;margin:6px 0 0}
+.sim-step{display:inline-flex;align-items:center;gap:6px}
+.sim-step b{min-width:14px;text-align:center;font-variant-numeric:tabular-nums}
+.sim-step button{width:24px;height:24px;border-radius:8px;border:1px solid var(--line-2);background:#0E1628;color:var(--ink);cursor:pointer;line-height:1;padding:0;font-size:15px}
+.sim-step button:hover{border-color:var(--cyan)}
+.sim-badge{font-size:11px;font-weight:700;border:1px solid;border-radius:999px;padding:3px 9px}
+.ops-table tr.sim-on td{background:rgba(34,211,238,.06)}
+@media (max-width:1100px){.sim-types{grid-template-columns:1fr}}
+.sim-costs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.sim-costs label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
+.sim-costs input{background:#0E1628;border:1px solid var(--line-2);border-radius:10px;color:var(--ink);padding:8px 10px;font:inherit;font-size:14px;width:100%}
+.sim-money{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.sim-money div{display:flex;flex-direction:column;gap:3px;background:rgba(14,22,40,.7);border:1px solid var(--line);border-radius:12px;padding:10px}
+.sim-money small{color:var(--muted);font-size:12px}
+.sim-money b{font-family:"Space Grotesk",Inter,sans-serif;font-size:19px}
+.sim-check ul{margin:10px 0;padding-left:18px;line-height:1.7;font-size:13px}
+.sim-check p{font-size:13px;margin:6px 0 8px}
+@media (max-width:1100px){.sim-costs,.sim-money{grid-template-columns:1fr 1fr}}

@@ -3,11 +3,13 @@ Risk: *Critical* (72/100)
 Week of 28 Jul 2025: ~*17* cases expected (7–20)
 
 *Supplies (allocated / required)*
-• Saline bags: 40 / 40
-• Test kits: 20 / 20
-• Hospital beds: 5 / 5
+• Saline bags: 35 / 40  ⚠ short 5
+• Test kits: 18 / 20  ⚠ short 2
+• Hospital beds: 4 / 5  ⚠ short 1
 
-Spray teams assigned: *2*
+*Partial supply deficit*: escalate to the city store.
+
+Spray teams assigned: *1*
 
 Action: Send spray teams now, clear standing water, alert clinics and ready beds.
 Dengue hospitals: Shaheed Ahsan Ullah Master General Hospital (Tongi), Shaheed Tajuddin Ahmad Medical College Hospital

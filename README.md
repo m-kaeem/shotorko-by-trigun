@@ -33,9 +33,9 @@ python -m src.train          # retrain all models from the CSV (~2.5 min), rewri
 python -m src.export_samples # regenerate exports/: sample SMS, WhatsApp alerts and printable briefs (EN + BN)
 ```
 
-**Offline:** the whole app runs without internet (model, data, notices, fonts and map are all local). Force it with `SHOTORKO_OFFLINE=1` (PowerShell: `$env:SHOTORKO_OFFLINE="1"; python run.py`); a yellow "Offline · local mode" badge appears. Details in ARCHITECTURE.md §9.
+**Offline:** the whole app runs without internet (model, data, notices, fonts and map are all local). Force it with `SHOTORKO_OFFLINE=1` (PowerShell: `$env:SHOTORKO_OFFLINE="1"; python run.py`); a yellow "Offline · local mode" badge appears. Details in ARCHITECTURE.md §11.
 
-**Automatic SMS (optional):** copy `.env.example` to `.env`. With the default `SMS_MODE=dry_run` nothing is sent. For real SMS, run the free *SMS Gateway for Android* app on a phone in local-server mode on the same Wi-Fi/hotspot, then set `SMS_MODE=android` and the gateway address, user and password from the app (ARCHITECTURE.md §8).
+**Automatic SMS (optional):** copy `.env.example` to `.env`. With the default `SMS_MODE=dry_run` nothing is sent. For real SMS, run the free *SMS Gateway for Android* app on a phone in local-server mode on the same Wi-Fi/hotspot, then set `SMS_MODE=android` and the gateway address, user and password from the app (ARCHITECTURE.md §10).
 
 ## What you can do in the app
 
@@ -50,7 +50,7 @@ python -m src.export_samples # regenerate exports/: sample SMS, WhatsApp alerts 
 | **Model trust** | Chronological split, MAE vs baselines by horizon, backtest chart with intervals, a **ward × week risk heatmap** for 2024–25 (forecast vs what happened), the **data distribution of each split**, accuracy on train/validation/test (MAE, RMSE, WAPE, R²), missing-data robustness, tier confusion matrix, error by month, interval coverage, alert sensitivity and precision. |
 | **Your data** | Upload a short or incomplete CSV (weekly or daily; only a date plus rainfall or temperature is required). Forecasts come from a robust model trained for missing data, with the typical error measured for that data shape. A sample CSV is included. |
 | **How it works** | Animated "breeding clock" (rain → standing water → mosquitoes → patients) and live system stats: inference time, API calls, LLM tokens (0). |
-| **Operations strip** | Cards on the dashboard for the Phase 2 modules. Dispatch notices is live; resource allocation, hospital overflow and the spray simulator open as they are completed. |
+| **Operations strip** | Cards on the dashboard for the Phase 2 modules. Dispatch notices opens its own page; resource allocation and hospital overflow open the Operations tab; the spray simulator opens the Crew simulator tab. |
 | **Dispatch centre** | A separate page for ward notices: pick week, horizon, regional stock and crews; wards in priority order with supply-deficit badges; each ward's **SMS**, **WhatsApp** alert and **printable commissioner brief** (EN/BN), with copy, print and **automatic SMS sending** through a phone gateway, including live delivery status. |
 | **Offline mode** | Everything runs on the laptop with no internet; an "Offline · local mode" badge shows when the connection is gone. |
 | **For everyone** | Full **English / বাংলা** switch (including numerals), a 4-step guided tour on first visit, keyboard-accessible controls, CSV field plan download, and reduced-motion support. |

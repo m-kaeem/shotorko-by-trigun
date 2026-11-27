@@ -120,7 +120,8 @@ def test_no_internet_attempts_were_made(client, offline):
 
 
 def test_web_pages_load_nothing_from_the_internet():
-    for f in ("index.html", "dispatch.html", "app.js", "dispatch.js", "styles.css", "dispatch.css", "fonts/fonts.css"):
+    for f in ("index.html", "dispatch.html", "app.js", "dispatch.js", "ops.js", "sim.js", "styles.css", "dispatch.css",
+              "ops.css", "sim.css", "fonts/fonts.css"):
         text = (ROOT / "web" / f).read_text(encoding="utf-8")
         urls = [u for u in re.findall(r"https?://[^\s\"')]+", text) if "w3.org" not in u]
         assert not urls, f"{f} references the internet: {urls}"

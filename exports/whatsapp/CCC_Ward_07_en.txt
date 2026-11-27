@@ -3,12 +3,14 @@ Risk: *Critical* (62/100)
 Week of 28 Jul 2025: ~*14* cases expected (6–19)
 
 *Supplies (allocated / required)*
-• Saline bags: 34 / 34
-• Test kits: 17 / 17
-• Hospital beds: 5 / 5
+• Saline bags: 25 / 34  ⚠ short 9
+• Test kits: 13 / 17  ⚠ short 4
+• Hospital beds: 4 / 5  ⚠ short 1
 
-Spray teams assigned: *0*
+*Partial supply deficit*: escalate to the city store.
 
-Action: Send spray teams now, clear standing water, alert clinics and ready beds. No spray crew is free in this round: request one from the city pool.
+Spray teams assigned: *1*
+
+Action: Send spray teams now, clear standing water, alert clinics and ready beds.
 Dengue hospitals: Chattogram Medical College Hospital, Bangladesh Institute of Tropical & Infectious Diseases (Fouzdarhat)
 Health line: 16263

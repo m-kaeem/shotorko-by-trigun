@@ -3,12 +3,14 @@ Risk: *High* (51/100)
 Week of 28 Jul 2025: ~*12* cases expected (5–16)
 
 *Supplies (allocated / required)*
-• Saline bags: 28 / 28
-• Test kits: 14 / 14
+• Saline bags: 26 / 28  ⚠ short 2
+• Test kits: 13 / 14  ⚠ short 1
 • Hospital beds: 4 / 4
 
-Spray teams assigned: *0*
+*Partial supply deficit*: escalate to the city store.
 
-Action: Send spray teams this week and clear drains before the peak. No spray crew is free in this round: request one from the city pool.
+Spray teams assigned: *1*
+
+Action: Send spray teams this week and clear drains before the peak.
 Dengue hospitals: Narayanganj 300-Bed Hospital (Khanpur), Narayanganj General (Victoria) Hospital
 Health line: 16263

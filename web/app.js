@@ -95,11 +95,14 @@
       <span class="op-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic[k]}</svg></span>
       <span class="op-txt"><b>${title}</b><small>${sub}</small></span>${href ? '<span class="op-go" aria-hidden="true">→</span>' : ""}</${href ? "a" : "div"}>`;
     const live = S.mode !== "live";
+    // allocation and overflow live in the Operations tab, the simulator in the Crew simulator tab (teammates' modules)
+    const hasTab = (name) => !!$(`nav.tabs button[data-tab=${name}]`);
     el.innerHTML = `<h2 class="ops-title" id="opsTitle">${t("opsTitle")}</h2><div class="ops-row">
-      ${card("alloc", t("opsAlloc"), t("comingSoon"))}
-      ${card("overflow", t("opsOverflow"), t("comingSoon"))}
-      ${card("sim", t("opsSim"), t("comingSoon"))}
+      ${card("alloc", t("opsAlloc"), hasTab("ops") ? t("opsAllocSub") : t("comingSoon"), hasTab("ops") ? "#tab=ops" : null)}
+      ${card("overflow", t("opsOverflow"), hasTab("ops") ? t("opsOverflowSub") : t("comingSoon"), hasTab("ops") ? "#tab=ops" : null)}
+      ${card("sim", t("opsSim"), hasTab("sim") ? t("opsSimSub") : t("comingSoon"), hasTab("sim") ? "#tab=sim" : null)}
       ${card("dispatch", t("opsDispatch"), live ? t("opsReady")(loc(hiCount)) : t("liveNoDispatch"), live ? "dispatch.html?" + q : null)}</div>`;
+    $$('#ops a[href^="#tab="]').forEach((a) => a.onclick = (e) => { e.preventDefault(); switchTab(a.getAttribute("href").slice(5)); });
   }
   function buildChips() {
     const opts = ["All", ...S.meta.cities.map((c) => c.id)];
@@ -950,6 +953,10 @@
   document.addEventListener("sk-net-changed", () => { if (S.fc) refresh(); });
   addEventListener("online", checkNet); addEventListener("offline", checkNet);
   setInterval(checkNet, 30000); checkNet();
+
+  // shared with web/ops.js (Phase 2 operations tab)
+  window.SK = { S, api, t, loc, nf, fmtDate, cityName, tierName, toast, HEX, TEXT_ON, debounce, tween,
+    setDate: (d) => setDate(d), setH: (h) => setH(h), wardLabel: (id) => wardLabel(id), ward: (id) => byId.get(id) };
 
   // ------------------------------------------------------------------ boot
   async function boot() {

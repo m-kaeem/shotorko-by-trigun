@@ -8,6 +8,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%23070B16'/%3E%3Ccircle cx='24' cy='24' r='17' fill='none' stroke='%2322D3EE' stroke-width='2' opacity='.6'/%3E%3Cpath d='M24 12C24 12 16 21 16 26.5A8 8 0 0 0 32 26.5C32 21 24 12 24 12Z' fill='%2322D3EE'/%3E%3Ccircle cx='36' cy='13' r='3' fill='%23F43F5E'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="ops.css">
+<link rel="stylesheet" href="sim.css">
 </head>
 <body>
 <header class="top reveal">
@@ -37,6 +39,8 @@
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button role="tab" data-tab="map" aria-selected="true" data-i="tabMap"></button>
     <button role="tab" data-tab="trust" aria-selected="false" data-i="tabTrust"></button>
+    <button role="tab" data-tab="ops" aria-selected="false" data-i="tabOps"></button>
+    <button role="tab" data-tab="sim" aria-selected="false" data-i="tabSim"></button>
     <button role="tab" data-tab="data" aria-selected="false" data-i="tabData"></button>
     <button role="tab" data-tab="how" aria-selected="false" data-i="tabHow"></button>
   </nav>
@@ -167,6 +171,12 @@
     </div>
   </section>
 
+  <!-- ================= OPERATIONS TAB (Phase 2: allocation + overflow routing, built by web/ops.js) ================= -->
+  <section class="tab" id="tab-ops" role="tabpanel"></section>
+
+  <!-- ================= CREW SIMULATOR TAB (Phase 2 Req 3: vector-control what-if, built by web/sim.js) ================= -->
+  <section class="tab" id="tab-sim" role="tabpanel"></section>
+
   <!-- ================= YOUR DATA TAB ================= -->
   <section class="tab" id="tab-data" role="tabpanel">
     <div class="hero"><div><h1 data-i="dataTitle"></h1><p data-i="dataText"></p></div></div>
@@ -205,5 +215,7 @@
 <script src="vendor/deck.gl-9.4.1.min.js"></script>
 <script src="i18n.js"></script>
 <script src="app.js"></script>
+<script src="ops.js"></script>
+<script src="sim.js"></script>
 </body>
 </html>

@@ -157,6 +157,63 @@ def forecast(date: str | None = None, rain: float = Query(1.0, ge=0, le=3), temp
     return out
 
 
+# ------------------------------------------------------------------ Phase 2 ward plans (docs/PHASE2_PLAN_CONTRACT.md)
+def _plans(date, h, stock_pct, total_crews, deployments=None, rain=1.0, temp=0.0, hum=0.0, floating=None,
+           min_share_pct=0.0):
+    from .plan import build_plans, totals
+    date = date or "2025-07-07"
+    if date not in VALID_SET:
+        raise HTTPException(400, "date must be a dataset week between 2017-01-02 and 2025-12-01")
+    if not 30 <= stock_pct <= 100:
+        raise HTTPException(400, "stock_pct must be between 30 and 100")
+    sc = _scenario(rain, temp, hum)
+    try:
+        plans = build_plans(ENGINE, date, h, stock_pct=stock_pct, total_crews=total_crews,
+                            deployments=deployments, scenario=sc if sc.active else None, positions=POS,
+                            floating_beds=floating or None, min_share_pct=min_share_pct)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"plans": plans, "totals": totals(plans)}
+
+
+@app.get("/api/plan")
+def plan(date: str | None = None, h: int = Query(3, ge=2, le=4), stock_pct: float = Query(100.0, ge=30, le=100),
+         total_crews: int = Query(20, ge=0, le=1000), rain: float = Query(1.0, ge=0, le=3),
+         temp: float = Query(0.0, ge=-5, le=5), hum: float = Query(0.0, ge=-30, le=30),
+         floating_beds: str | None = Query(None, description="reserve beds per city, e.g. 'Gazipur:2'"),
+         min_share_pct: float = Query(0.0, ge=0, le=50, description="lifeline: guaranteed % of need per ward")):
+    from .surge import CITY_ORDER, parse_city_counts
+    try:
+        floating = parse_city_counts(floating_beds, CITY_ORDER)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return _plans(date, h, stock_pct, total_crews, None, rain, temp, hum, floating, min_share_pct)
+
+
+@app.post("/api/plan/simulate")
+async def plan_simulate(request: Request):
+    try:
+        b = await request.json()
+    except Exception:
+        raise HTTPException(400, "body must be JSON")
+    dep = b.get("deployments") or {}
+    if not isinstance(dep, dict):
+        raise HTTPException(400, "deployments must be an object {ward_id: crews_sent}")
+    try:
+        h = int(b.get("h", 3))
+        stock = float(b.get("stock_pct", 100.0))
+        crews = int(b.get("total_crews", 20))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "h, stock_pct and total_crews must be numbers")
+    if h not in C.HORIZONS:
+        raise HTTPException(400, "h must be 2, 3 or 4")
+    floating = b.get("floating_beds") or None
+    if floating is not None and not isinstance(floating, (dict, int)):
+        raise HTTPException(400, "floating_beds must be {city: beds} or one number for every city")
+    return _plans(b.get("date"), h, stock, crews, dep, float(b.get("rain", 1.0)), float(b.get("temp", 0.0)),
+                  float(b.get("hum", 0.0)), floating, float(b.get("min_share_pct", 0.0)))
+
+
 @app.get("/api/ward/{ward_id}")
 def ward(ward_id: str, date: str | None = None, h: int = Query(3, ge=2, le=4), rain: float = 1.0, temp: float = 0.0,
          hum: float = 0.0, mode: str = Query("replay", pattern="^(replay|live)$")):
@@ -285,27 +342,15 @@ def heatmap(h: int = Query(3, ge=2, le=4)):
 
 
 # ------------------------------------------------------------------ Phase 2: ward plans + dispatch notices
-@lru_cache(maxsize=256)
-def _plans_cached(date: str, h: int, stock_pct: float, total_crews: int):
-    from .plan_stub import get_build_plans, totals
-    ref, _ = _resolve(date, "replay")
-    build, source = get_build_plans()
-    plans = build(ENGINE, ref.strftime("%Y-%m-%d"), h, stock_pct=stock_pct, total_crews=total_crews)
-    return {"date": ref.strftime("%Y-%m-%d"), "h": h, "stock_pct": stock_pct, "total_crews": total_crews,
-            "source": source, "plans": plans, "totals": totals(plans)}
-
-
-@app.get("/api/plan")
-def plan(date: str | None = None, h: int = Query(3, ge=2, le=4), stock_pct: float = Query(100.0, ge=30, le=100),
-         total_crews: int = Query(20, ge=0, le=500)):
-    return _plans_cached(date or "2025-07-07", h, round(stock_pct, 1), total_crews)
+def _dispatch_plans(date, h, stock_pct, total_crews) -> list[dict]:
+    """Ward plans for notices: the real allocation engine (src/plan.py, Requirement 1), baseline weather."""
+    return _plans(date, h, float(stock_pct), int(total_crews))["plans"]
 
 
 def _one_plan(ward_id: str, date, h, stock_pct, total_crews) -> dict:
     if ward_id not in POS:
         raise HTTPException(404, "unknown ward")
-    plans = plan(date, h, stock_pct, total_crews)["plans"]
-    return next(p for p in plans if p["ward_id"] == ward_id)
+    return next(p for p in _dispatch_plans(date, h, stock_pct, total_crews) if p["ward_id"] == ward_id)
 
 
 @app.get("/api/dispatch/{ward_id}")
@@ -338,7 +383,7 @@ def dispatch_all(date: str | None = None, h: int = Query(3, ge=2, le=4), stock_p
     """Notices for every ward at or above min_tier, in priority order (a whole dispatch round)."""
     from . import dispatch as D
     keep = C.TIERS[C.TIERS.index(min_tier):]
-    plans = [p for p in plan(date, h, stock_pct, total_crews)["plans"] if p["tier"] in keep]
+    plans = [p for p in _dispatch_plans(date, h, stock_pct, total_crews) if p["tier"] in keep]
     plans.sort(key=lambda p: p["priority_rank"])
     return {"count": len(plans), "notices": [{"ward_id": p["ward_id"], "city": p["city"], "tier": p["tier"], "priority_rank": p["priority_rank"],
                                               "deficit_level": p["deficit_level"], "sms": D.sms(p, lang),
@@ -362,7 +407,7 @@ async def sms_send(request: Request):
     stock, crews, lang = float(b.get("stock_pct", 100)), int(b.get("total_crews", 20)), b.get("lang", "en")
     if lang not in ("en", "bn") or h not in C.HORIZONS:
         raise HTTPException(400, "bad lang or h")
-    plans = plan(date, h, stock, crews)["plans"]
+    plans = _dispatch_plans(date, h, stock, crews)
     if b.get("round"):
         tier = b.get("min_tier", "High")
         if tier not in C.TIERS:
@@ -404,6 +449,67 @@ async def offline_switch(request: Request):
     return offline.status()
 
 
+# ------------------------------------------------------------------ Req 3: vector-control simulator
+def _sim_args(body: dict):
+    from . import simulation as SIM
+    date = body.get("date") or "2025-07-07"
+    if date not in VALID_SET:
+        raise HTTPException(400, "date must be a dataset week between 2017-01-02 and 2025-12-01")
+    h = int(body.get("h", 3))
+    if h not in C.HORIZONS:
+        raise HTTPException(400, "h must be 2, 3 or 4")
+    total_crews = int(body.get("total_crews", 20))
+    if not 0 <= total_crews <= 200:
+        raise HTTPException(400, "total_crews must be 0-200")
+    sc = _scenario(float(body.get("rain", 1.0)), float(body.get("temp", 0.0)), float(body.get("hum", 0.0)))
+    sc = sc if sc.active else None
+    dep = body.get("deployments")
+    auto = dep is None or dep == "auto"
+    if auto:   # no deployment given: recommend the one that prevents the most cases
+        dep = SIM.best_deployment(ENGINE, date, total_crews, sc)
+    if not isinstance(dep, dict):
+        raise HTTPException(400, "deployments must be {ward_id: crews}, {ward_id: {larvicide, indoor}} or \"auto\"")
+    try:
+        dep = SIM._clean(ENGINE, dep)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, str(exc))
+    if SIM.crews_used(dep) > total_crews:
+        raise HTTPException(400, f"deployments use {SIM.crews_used(dep)} crews but total_crews is {total_crews}")
+    return SIM, date, h, total_crews, sc, dep, auto
+
+
+@app.post("/api/simulate")
+async def simulate_crews(request: Request):
+    """Standalone simulator (works without the plan builder): per-ward counterfactual + ROI ranking."""
+    body = await request.json()
+    SIM, date, h, total_crews, sc, dep, auto = _sim_args(body)
+    costs = {k: float(v) for k, v in (body.get("costs") or {}).items() if k in SIM.COSTS and float(v) >= 0}
+    t0 = time.perf_counter()
+    sims = SIM.simulate(ENGINE, date, dep, sc, costs=costs)
+    ranking = SIM.roi_ranking(ENGINE, date, 1, sc)
+    return {"date": date, "total_crews": total_crews, "auto": auto, "deployments": dep,
+            "summary": SIM.summary(sims), "wards": sims, "roi_ranking": ranking,
+            "costs": {**SIM.COSTS, **costs}, "assumptions": SIM.ASSUMPTIONS,
+            "latency_ms": round((time.perf_counter() - t0) * 1000, 1)}
+
+
+@app.get("/api/simulate/check")
+def simulate_check():
+    """Does the model respond to crew-changeable features the way the data says? (out-of-sample weeks)"""
+    from . import simulation as SIM
+    return SIM.model_check(ENGINE)
+
+
+@app.get("/api/simulate/roi")
+def simulate_roi(date: str = "2025-07-07", crews: int = Query(1, ge=1, le=6)):
+    """All 60 wards ranked by cases prevented per crew if `crews` crews were sent there."""
+    from . import simulation as SIM
+    if date not in VALID_SET:
+        raise HTTPException(400, "date must be a dataset week between 2017-01-02 and 2025-12-01")
+    return {"date": date, "crews": crews, "ranking": SIM.roi_ranking(ENGINE, date, crews),
+            "assumptions": SIM.ASSUMPTIONS}
+
+
 @app.get("/api/health")
 def health():
     """Liveness plus the offline picture: what runs locally, and whether the internet is there at all."""
@@ -421,4 +527,7 @@ def health():
     })
 
 
+from .ops_api import router as ops_router  # noqa: E402  (Phase 2 operations endpoints)
+
+app.include_router(ops_router)
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")

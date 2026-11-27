@@ -3,9 +3,9 @@ Risk: *High* (33/100)
 Week of 28 Jul 2025: ~*9* cases expected (5–13)
 
 *Supplies (allocated / required)*
-• Saline bags: 0 / 22  ⚠ short 22
-• Test kits: 0 / 11  ⚠ short 11
-• Hospital beds: 0 / 3  ⚠ short 3
+• Saline bags: 6 / 22  ⚠ short 16
+• Test kits: 3 / 11  ⚠ short 8
+• Hospital beds: 1 / 3  ⚠ short 2
 
 *CRITICAL supply deficit*: escalate to the city store.
 
