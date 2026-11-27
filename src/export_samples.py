@@ -59,7 +59,7 @@ def main(argv=None) -> None:
         f"({len(plans)} wards). Supply plan source: `{source}`.\n\n"
         "- `sms/`: one SMS per ward (English fits one 160-character message; Bangla is Unicode, 70 characters per part)\n"
         "- `whatsapp/`: WhatsApp alerts with bold labels\n"
-        "- `briefs/`: printable commissioner briefs (open in a browser, then Print or Save as PDF)\n"
+        "- `briefs/`: printable office orders (open in a browser, then Print or Save as PDF)\n"
         f"- `dispatch_round_{a.date}.csv`: the whole round in one table\n\n"
         "Each ward has an English (`_en`) and a Bangla (`_bn`) version.\n", encoding="utf-8")
     print(f"Wrote {len(plans)} wards x 2 languages x 3 channels to {out} (plan source: {source})")
