@@ -38,19 +38,15 @@
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button role="tab" data-tab="map" aria-selected="true" data-i="tabMap"></button>
-    <button role="tab" data-tab="trust" aria-selected="false" data-i="tabTrust"></button>
     <button role="tab" data-tab="ops" aria-selected="false" data-i="tabOps"></button>
     <button role="tab" data-tab="sim" aria-selected="false" data-i="tabSim"></button>
+    <button role="tab" data-tab="trust" aria-selected="false" data-i="tabTrust"></button>
     <button role="tab" data-tab="data" aria-selected="false" data-i="tabData"></button>
     <button role="tab" data-tab="how" aria-selected="false" data-i="tabHow"></button>
   </nav>
   <div class="top-right">
     <button class="net-switch" id="netSwitch" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg><span data-i="simOffline"></span></button>
     <span class="net-badge" id="netBadge" role="status" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20M8.5 16.5a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.1-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 11 4.6M12 20h.01"/></svg><span data-i="netOffline"></span></span>
-        <div class="seg" role="group" aria-label="Data source">
-      <button id="modeReplay" aria-pressed="true" data-i="replay"></button>
-      <button id="modeLive" aria-pressed="false" data-i="live"></button>
-    </div>
     <div class="seg" role="group" aria-label="Language">
       <button id="langEn" aria-pressed="true">EN</button>
       <button id="langBn" aria-pressed="false" lang="bn">বাংলা</button>
@@ -66,13 +62,21 @@
 <main>
   <!-- ================= MAP TAB ================= -->
   <section class="tab active" id="tab-map" role="tabpanel">
-    <div class="hero reveal" style="animation-delay:.08s">
-      <div><h1 data-i="heroTitle"></h1><p data-i="heroText"></p></div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <span class="eyebrow" data-i="forecastFor"></span>
-        <div class="pills" id="horizons" role="group" aria-label="Forecast horizon"></div>
+    <section class="intro" id="intro" aria-labelledby="introTitle">
+      <div class="intro-text">
+        <h1 id="introTitle" data-i="introTitle"></h1>
+        <p data-i="introText"></p>
       </div>
-    </div>
+      <ol class="intro-steps">
+        <li><span class="n">1</span><span data-i="step1"></span></li>
+        <li><span class="n">2</span><span data-i="step2"></span></li>
+        <li><span class="n">3</span><span data-i="step3"></span></li>
+      </ol>
+      <button class="intro-close" id="introClose" data-i-title="introHide"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </section>
+    <button class="intro-show" id="introShow" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><span data-i="introShow"></span></button>
+
+    <h2 class="step-head"><span class="n">1</span><span data-i="stepWhen"></span><small data-i="stepWhenSub"></small></h2>
 
     <div class="timeline reveal" id="timeline" style="animation-delay:.14s">
       <button class="play" id="playBtn" aria-label="Play season">
@@ -93,25 +97,32 @@
         </div>
         <div class="cal-pop" id="calPop" role="dialog" aria-label="Pick a week" hidden></div>
       </div>
-      <span id="sampleBadge" class="badge"></span>
-      <div class="seg" role="group" aria-label="Map shows">
+      <div class="ctl"><span class="ctl-lab" data-i="forecastFor"></span><div class="pills" id="horizons" role="group" aria-label="Forecast horizon"></div></div>
+      <div class="ctl"><span class="ctl-lab" data-i="mapShows"></span><div class="seg" role="group" aria-label="Map shows">
         <button id="viewFc" aria-pressed="true" data-i="viewForecast"></button>
         <button id="viewAct" aria-pressed="false" data-i="viewActual"></button>
-      </div>
+      </div></div>
+      <div class="ctl"><span class="ctl-lab" data-i="dataSource"></span><div class="seg" role="group" aria-label="Data source">
+      <button id="modeReplay" aria-pressed="true" data-i="replay"></button>
+      <button id="modeLive" aria-pressed="false" data-i="live"></button>
+    </div></div>
+      <span id="sampleBadge" class="badge"></span>
     </div>
 
     <div id="liveInfo" class="action ok" style="display:none" data-i="liveInfo"></div>
     <div id="wxFresh" class="wx-fresh" role="status" hidden></div>
 
+    <h2 class="step-head"><span class="n">2</span><span data-i="stepRisk"></span><small data-i="stepRiskSub"></small></h2>
     <div class="kpis" id="kpis"></div>
-
+    <h2 class="step-head"><span class="n">3</span><span data-i="stepAct"></span><small data-i="stepActSub"></small></h2>
     <section class="ops" id="ops" aria-labelledby="opsTitle"></section>
+
 
     <div class="grid">
       <section class="card map-card reveal" id="mapCard" aria-label="3D ward risk map" style="animation-delay:.3s">
         <div class="toolbar">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><div class="chips" id="cityChips" role="group" aria-label="Filter by city"></div>
-          <button class="chip hosp-chip" id="hospToggle" aria-pressed="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i="hospitals"></span></button></div>
+          <button class="chip hosp-chip" id="hospToggle" aria-pressed="false"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i="hospitals"></span></button></div>
           <div class="search">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
             <label class="sr-only" for="search">Search a ward</label>
@@ -127,8 +138,6 @@
           <div class="labels" id="labels"></div>
           <div class="map-legend" id="legend"></div>
           <div class="map-tools">
-            <button id="zoomIn" aria-label="Zoom in"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-            <button id="zoomOut" aria-label="Zoom out"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
             <button id="resetView" aria-label="Reset view"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
           </div>
           <div class="map-note" id="mapNote"></div>
@@ -142,6 +151,7 @@
 
       <aside class="panel reveal" id="panel" aria-label="Selected ward forecast" aria-live="polite" style="animation-delay:.45s"></aside>
     </div>
+
   </section>
 
   <!-- ================= TRUST TAB ================= -->
