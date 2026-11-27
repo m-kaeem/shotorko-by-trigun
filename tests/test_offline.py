@@ -124,3 +124,16 @@ def test_web_pages_load_nothing_from_the_internet():
         text = (ROOT / "web" / f).read_text(encoding="utf-8")
         urls = [u for u in re.findall(r"https?://[^\s\"')]+", text) if "w3.org" not in u]
         assert not urls, f"{f} references the internet: {urls}"
+
+
+def test_in_app_offline_switch(client):
+    from src import offline as O
+    try:
+        on = client.post("/api/offline", json={"on": True}).json()
+        assert on["offline_forced"] is True and on["internet"] is False
+        assert client.get("/api/health").json()["offline_forced"] is True
+        assert client.get("/api/forecast", params={"date": "2025-07-07"}).status_code == 200
+        off = client.post("/api/offline", json={"on": False}).json()
+        assert off["offline_forced"] is False
+    finally:
+        O._RUNTIME["forced"] = None

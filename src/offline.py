@@ -38,8 +38,19 @@ def load_env() -> None:
 load_env()
 
 
+_RUNTIME = {"forced": None}   # set from the UI's offline switch; None = follow SHOTORKO_OFFLINE
+
+
 def forced_offline() -> bool:
+    if _RUNTIME["forced"] is not None:
+        return _RUNTIME["forced"]
     return os.environ.get("SHOTORKO_OFFLINE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def set_forced(on: bool) -> None:
+    """The in-app switch: go offline (or back online) without restarting. Resets the connectivity probe."""
+    _RUNTIME["forced"] = bool(on)
+    _PROBE.update(at=0.0, ok=None)
 
 
 def internet_ok(max_age_s: float = 30.0) -> bool:

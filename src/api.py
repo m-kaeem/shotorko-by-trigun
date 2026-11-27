@@ -393,6 +393,17 @@ def sms_retry():
     return {"requeued": G.retry_failed()}
 
 
+@app.post("/api/offline")
+async def offline_switch(request: Request):
+    """The in-app offline switch: {"on": true} forbids every internet request until switched back."""
+    from . import offline
+    b = await request.json()
+    offline.set_forced(bool(b.get("on")))
+    _LIVE.update(raw=None, at=0.0)   # next live request re-checks the network instead of reusing in-memory weather
+    _forecast_cached.cache_clear()
+    return offline.status()
+
+
 @app.get("/api/health")
 def health():
     """Liveness plus the offline picture: what runs locally, and whether the internet is there at all."""

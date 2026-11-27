@@ -924,10 +924,30 @@
   // ------------------------------------------------------------------ offline badge (Phase 2, Requirement 5)
   async function checkNet() {
     let offline = !navigator.onLine;
-    try { const h = await fetch("/api/health", { cache: "no-store" }).then((r) => r.json()); offline = offline || !h.internet; } catch (e) { /* server is local; ignore */ }
+    try { const h = await fetch("/api/health", { cache: "no-store" }).then((r) => r.json()); offline = offline || !h.internet; checkNet.forced = h.offline_forced; } catch (e) { /* server is local; ignore */ }
+    const L = window.I18N[document.documentElement.lang === "bn" ? "bn" : "en"];
     const b = document.getElementById("netBadge"); if (!b) return;
-    b.hidden = !offline; b.title = window.I18N[document.documentElement.lang === "bn" ? "bn" : "en"].netOfflineTip;
+    b.hidden = !offline; b.title = L.netOfflineTip;
+    const sw = document.getElementById("netSwitch");
+    if (sw && checkNet.forced !== undefined) {
+      sw.setAttribute("aria-pressed", checkNet.forced); sw.title = L.simOfflineTip;
+      sw.querySelector("span").textContent = checkNet.forced ? L.simOnline : L.simOffline;
+    }
   }
+  // the in-app offline switch: go offline (and back) live, e.g. during judging, without unplugging anything
+  async function toggleOffline() {
+    const sw = document.getElementById("netSwitch"); if (!sw) return;
+    sw.disabled = true;
+    try {
+      const r = await fetch("/api/offline", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on: sw.getAttribute("aria-pressed") !== "true" }) }).then((x) => x.json());
+      checkNet.forced = r.offline_forced;
+      await checkNet();
+      document.dispatchEvent(new CustomEvent("sk-net-changed", { detail: r }));
+    } finally { sw.disabled = false; }
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest && e.target.closest("#netSwitch")) toggleOffline(); });
+  document.addEventListener("sk-net-changed", () => { if (S.fc) refresh(); });
   addEventListener("online", checkNet); addEventListener("offline", checkNet);
   setInterval(checkNet, 30000); checkNet();
 
