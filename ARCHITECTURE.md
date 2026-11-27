@@ -98,7 +98,7 @@ For High or Critical wards, the panel lists the city's dengue-treating public ho
 
 ## 8. Phase 2 operations: supply allocation and hospital overflow (requirements 1–2)
 
-Both modules run on the same cached forecast as the map (`/api/forecast`), in plain numpy/pandas, with no network and no LLM. Code: `src/resources.py`, `src/surge.py`, `src/ops_api.py`; UI: the **Operations** tab (`web/ops.js`). Both modules feed the team's shared **ward plan** format (`src/plan.py`, `GET /api/plan`, `POST /api/plan/simulate`; spec in `docs/PHASE2_PLAN_CONTRACT.md`), which the dispatch notices read. Tests: `tests/test_operations.py` and `tests/test_plan.py` (every contract rule, plus kill-switch tests that block every outbound socket).
+Both modules run on the same cached forecast as the map (`/api/forecast`), in plain numpy/pandas, with no network and no LLM. Code: `src/resources.py`, `src/surge.py`, `src/ops_api.py`; UI: the **Supplies** tab (Req 1) and the **Hospital beds** tab (Req 2), both built by `web/ops.js`. Both modules feed the team's shared **ward plan** format (`src/plan.py`, `GET /api/plan`, `POST /api/plan/simulate`; spec in `docs/PHASE2_PLAN_CONTRACT.md`), which the dispatch notices read. Tests: `tests/test_operations.py` and `tests/test_plan.py` (every contract rule, plus kill-switch tests that block every outbound socket).
 
 ```
 forecast (cases, 80% upper, tier) ──► supply rule ──► demand per ward ──► priority water-filling ──► allocation + deficit flags
@@ -107,7 +107,7 @@ forecast (cases, 80% upper, tier) ──► supply rule ──► demand per war
 
 **Supply rule, fitted from the onsite data.** In the onsite dataset each supply column is an exact function of `dengue_cases`. A grid search (`fit_ratio`) finds ratios that reproduce **all 31,320 rows exactly** (round half up):
 saline = round(cases × 2.385), kits = round(cases × 1.165), beds = round(cases × 0.298).
-For predicted cases the same ratios are used but rounded **up** (ceil), as the ward-plan contract specifies, so a ward is never planned short by rounding. Ward plans use the expected count; the Operations tab can also plan on the 80% upper bound ("worst case").
+For predicted cases the same ratios are used but rounded **up** (ceil), as the ward-plan contract specifies, so a ward is never planned short by rounding. Ward plans use the expected count; the Supplies and Hospital beds tabs can also plan on the 80% upper bound ("worst case").
 
 **Requirement 1: constrained allocation.**
 * Priority weight per ward = tier weight (Low 1, Medium 2, High 3, Critical 4) × population density ÷ mean density.
@@ -143,7 +143,7 @@ feature row (ward, week t) ─┬─► LightGBM h=2,3,4 ─► cases without cr
                             └─► crew effect on the features ─► LightGBM ─► cases with crews ─┴─► prevented, beds, saline, ROI
 ```
 
-**Model-driven counterfactual, not a fixed %.** For each ward and horizon the deployed forecast models run twice: once on the real features, once on the features the crews' work would produce. The difference, summed over weeks +2…+4, is `cases_prevented`; beds and saline use Requirement 1's ratios (`SUPPLY_RATIOS`), so they match the Operations tab. The same crew prevents more in a waterlogged ward after heavy rain than in a dry-season ward, because that is what the model learned.
+**Model-driven counterfactual, not a fixed %.** For each ward and horizon the deployed forecast models run twice: once on the real features, once on the features the crews' work would produce. The difference, summed over weeks +2…+4, is `cases_prevented`; beds and saline use Requirement 1's ratios (`SUPPLY_RATIOS`), so they match the Supplies tab. The same crew prevents more in a waterlogged ward after heavy rain than in a dry-season ward, because that is what the model learned.
 
 **Two crew types** (fogging is deliberately not offered: no proven case reduction in trials, and Dhaka *Aedes* is highly pyrethroid-resistant):
 

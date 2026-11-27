@@ -1,6 +1,6 @@
-/* Shotorko — Operations tab (Phase 2).
-   Req 1: constrained supply + crew allocation with scarcity controls and deficit alerts.
-   Req 2: hospital surge detection and intra-city overflow routing.
+/* Shotorko — Supplies tab and Hospital beds tab (Phase 2).
+   Supplies (#tab-ops), Req 1: constrained supply + crew allocation with scarcity controls and deficit alerts.
+   Hospital beds (#tab-beds), Req 2: hospital surge detection and intra-city overflow routing.
    All numbers come from /api/ops/* (local model + deterministic math, no network needed). */
 (() => {
   "use strict";
@@ -13,8 +13,9 @@
   // ------------------------------------------------------------------ strings
   const STR = {
     en: {
-      tabOps: "Operations",
-      title: "Operations command", sub: "Turn the forecast into supplies, spraying crews and hospital beds. Move the sliders to see who gets served first when stock runs short.",
+      tabOps: "Supplies", tabBeds: "Hospital beds",
+      title: "Supplies & crews", sub: "Turn the forecast into saline, test kits and spraying crews. Move the sliders to see who gets served first when stock runs short.",
+      resetBeds: "Reset beds",
       week: "Forecast week", horizon: "Plan for", weeks: "weeks ahead", basis: "Plan on", expected: "Expected cases", upper: "Worst case (80% upper)",
       policy: "When stock is short", weighted: "Share by priority", strict: "Strict triage",
       policyHelp: { weighted: "Every ward gets a share; higher-priority wards get a bigger share and are filled first.", strict: "Wards are served in full, one by one, in priority order until stock runs out." },
@@ -81,8 +82,9 @@
       allCities: "All cities", target: "Target week", offline: "Runs fully offline", km: "km",
     },
     bn: {
-      tabOps: "অপারেশন",
-      title: "অপারেশন কমান্ড", sub: "পূর্বাভাসকে স্যালাইন, কিট, স্প্রে দল আর হাসপাতাল বেডে রূপান্তর করুন। স্টক কম হলে কে আগে পাবে, স্লাইডার নাড়িয়ে দেখুন।",
+      tabOps: "সরবরাহ", tabBeds: "হাসপাতাল বেড",
+      title: "সরবরাহ ও স্প্রে দল", sub: "পূর্বাভাসকে স্যালাইন, কিট আর স্প্রে দলে রূপান্তর করুন। স্টক কম হলে কে আগে পাবে, স্লাইডার নাড়িয়ে দেখুন।",
+      resetBeds: "বেড রিসেট",
       week: "পূর্বাভাসের সপ্তাহ", horizon: "পরিকল্পনা", weeks: "সপ্তাহ আগে", basis: "ভিত্তি", expected: "প্রত্যাশিত রোগী", upper: "সবচেয়ে খারাপ (৮০% উচ্চসীমা)",
       policy: "স্টক কম হলে", weighted: "অগ্রাধিকার অনুযায়ী ভাগ", strict: "কড়া ট্রায়াজ",
       policyHelp: { weighted: "সব ওয়ার্ড কিছু পাবে; বেশি অগ্রাধিকারের ওয়ার্ড বড় ভাগ পাবে, আগে পূর্ণ হবে।", strict: "অগ্রাধিকারের ক্রমে একে একে পুরো চাহিদা মেটানো হবে, স্টক শেষ না হওয়া পর্যন্ত।" },
@@ -150,7 +152,7 @@
     },
   };
   // register the nav label so app.js's applyLang() can fill it
-  Object.entries(STR).forEach(([l, o]) => { if (window.I18N && window.I18N[l]) window.I18N[l].tabOps = o.tabOps; });
+  Object.entries(STR).forEach(([l, o]) => { if (window.I18N && window.I18N[l]) { window.I18N[l].tabOps = o.tabOps; window.I18N[l].tabBeds = o.tabBeds; } });
 
   const DEF = { stock: 0.6, crews: 60, cap: 1.0, life: 0, basis: "expected", policy: "weighted", ors: 0, lead: 7, packets: "", gap: 0 };   // what Reset goes back to
   const O = { stock: 0.6, crews: 60, cap: 1.0, float: {}, life: 0, gap: 0, ors: 0, lead: 7, packets: "", sal: null, bt: null, real: { saline: "", kits: "", beds: "" }, basis: "expected", policy: "weighted", city: null, alloc: null, surge: null, prevStatus: {}, built: false, seq: 0 };
@@ -168,28 +170,29 @@
   // ------------------------------------------------------------------ layout
   function build() {
     const T = L(), S = SK().S;
+    const shared = (extra) => `<div class="ops-row">
+          <div class="ops-field"><span class="eyebrow">${T.week}</span>
+            <div class="ops-week"><button class="step" data-wk="-1" aria-label="Previous week">‹</button><b class="ops-weekv">–</b><button class="step" data-wk="1" aria-label="Next week">›</button></div>
+            <small class="ops-targetv"></small></div>
+          <div class="ops-field"><span class="eyebrow">${T.horizon}</span>
+            <div class="seg ops-hseg">${[2, 3, 4].map((h) => `<button data-h="${h}" aria-pressed="${h === S.h}">${loc(h)} ${T.weeks}</button>`).join("")}</div></div>
+          <div class="ops-field"><span class="eyebrow">${T.basis}</span>
+            <div class="seg ops-bseg"><button data-b="expected" aria-pressed="${O.basis === "expected"}">${T.expected}</button><button data-b="upper" aria-pressed="${O.basis === "upper"}">${T.upper}</button></div></div>
+          ${extra || ""}
+        </div>`;
+    const hero = (t, s) => `<div class="hero"><div><h1>${t}</h1><p>${s}</p></div><span class="ops-offline"><i></i>${T.offline}</span></div>`;
+    // ---- Supplies tab (Req 1): stock, crews, saline outlook, allocation, backtest
     $("#tab-ops").innerHTML = `
-      <div class="hero"><div><h1>${T.title}</h1><p>${T.sub}</p></div>
-        <span class="ops-offline"><i></i>${T.offline}</span></div>
+      ${hero(T.title, T.sub)}
       <div class="card ops-deck">
         <button type="button" class="ops-reset ops-resetall" id="opsResetAll" title="${T.resetTip}" hidden>↺ ${T.resetAll}</button>
-        <div class="ops-row">
-          <div class="ops-field"><span class="eyebrow">${T.week}</span>
-            <div class="ops-week"><button class="step" data-wk="-1" aria-label="Previous week">‹</button><b id="opsWeek">–</b><button class="step" data-wk="1" aria-label="Next week">›</button></div>
-            <small id="opsTarget"></small></div>
-          <div class="ops-field"><span class="eyebrow">${T.horizon}</span>
-            <div class="seg" id="opsH">${[2, 3, 4].map((h) => `<button data-h="${h}" aria-pressed="${h === S.h}">${loc(h)} ${T.weeks}</button>`).join("")}</div></div>
-          <div class="ops-field"><span class="eyebrow">${T.basis}</span>
-            <div class="seg" id="opsBasis"><button data-b="expected" aria-pressed="${O.basis === "expected"}">${T.expected}</button><button data-b="upper" aria-pressed="${O.basis === "upper"}">${T.upper}</button></div></div>
-          <div class="ops-field"><span class="eyebrow">${T.policy}</span>
+        ${shared(`<div class="ops-field"><span class="eyebrow">${T.policy}</span>
             <div class="seg" id="opsPolicy"><button data-p="weighted" aria-pressed="${O.policy === "weighted"}">${T.weighted}</button><button data-p="strict" aria-pressed="${O.policy === "strict"}">${T.strict}</button></div>
-            <small id="opsPolicyHelp">${T.policyHelp[O.policy]}</small></div>
-        </div>
+            <small id="opsPolicyHelp">${T.policyHelp[O.policy]}</small></div>`)}
         <div class="ops-sliders">
           ${slider("opsStock", T.stock, T.stockHelp, 30, 100, 5, Math.round(O.stock * 100), "%", Math.round(DEF.stock * 100))}
           ${slider("opsLife", T.life, T.lifeHelp, 0, 50, 5, Math.round(O.life * 100), "%", Math.round(DEF.life * 100))}
           ${slider("opsCrews", T.crews, T.crewsHelp, 0, 200, 1, O.crews, "", DEF.crews)}
-          ${slider("opsCap", T.capScale, T.capHelp, 50, 200, 5, Math.round(O.cap * 100), "%", Math.round(DEF.cap * 100))}
         </div>
         <div class="ops-real"><span class="eyebrow">${T.real}</span>
           ${["saline", "kits", "beds"].map((k) => `<label class="ops-num"><span>${T.realItems[k]}</span><input type="number" min="0" step="1" inputmode="numeric" id="opsReal_${k}" value="${O.real[k]}"></label>`).join("")}
@@ -215,9 +218,18 @@
         <div class="ops-table-wrap"><table class="ops-table" id="opsTable"></table></div></div>
       <div class="card ops-bt"><h3 class="sec-title">${T.btTitle}</h3><small class="ops-muted" id="opsBtSub"></small>
         <div class="ops-table-wrap"><table class="ops-table" id="opsBtTable"></table></div>
-        <p class="ops-btsum" id="opsBtSum"></p><small class="ops-muted">${T.btNote}</small></div>
-      <h2 class="h-font ops-h2">${T.surgeTitle}</h2>
-      <p class="ops-muted ops-p">${T.surgeSub}<br><small>${T.capRule}</small></p>
+        <p class="ops-btsum" id="opsBtSum"></p><small class="ops-muted">${T.btNote}</small></div>`;
+    // ---- Hospital beds tab (Req 2): capacity, floor beds, city cards, transfers, map
+    $("#tab-beds").innerHTML = `
+      ${hero(T.surgeTitle, T.surgeSub)}
+      <div class="card ops-deck">
+        <button type="button" class="ops-reset ops-resetall" id="opsResetBeds" title="${T.resetTip}" hidden>↺ ${T.resetBeds}</button>
+        ${shared()}
+        <div class="ops-sliders">
+          ${slider("opsCap", T.capScale, T.capHelp, 50, 200, 5, Math.round(O.cap * 100), "%", Math.round(DEF.cap * 100))}
+        </div>
+        <small class="ops-muted">${T.capRule}</small>
+      </div>
       <div class="card ops-hospctl"><div class="ops-gapctl"><span class="eyebrow">${T.bed}</span>
           <div class="seg" id="opsGap">${T.gapOpts.map((o, i) => `<button data-g="${i}" aria-pressed="${O.gap === i}">${o}</button>`).join("")}</div>
           <small class="ops-muted">${T.bedHelp}</small><small class="ops-muted">${T.bedNote}</small></div>
@@ -243,7 +255,7 @@
   }
   function wireDeck() {
     const S = SK().S, go = SK().debounce(load, 140);
-    $$("#tab-ops input[type=range]").forEach((inp) => inp.addEventListener("input", () => {
+    $$("#tab-ops input[type=range], #tab-beds input[type=range]").forEach((inp) => inp.addEventListener("input", () => {
       const v = +inp.value, u = inp.dataset.unit;
       $(`#${inp.id}V`).textContent = loc(v) + u;
       inp.style.setProperty("--p", ((v - inp.min) / (inp.max - inp.min) * 100) + "%");
@@ -254,8 +266,9 @@
       if (inp.id === "opsOrs") O.ors = v / 100;
       updateResets(); go();
     }));
-    $$("#tab-ops .ops-reset[data-reset]").forEach((b) => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); setSlider(b.dataset.reset, +b.dataset.def); });
-    $("#opsResetAll").onclick = resetAll;
+    $$(".ops-reset[data-reset]").forEach((b) => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); setSlider(b.dataset.reset, +b.dataset.def); });
+    $("#opsResetAll").onclick = resetSupplies;
+    $("#opsResetBeds").onclick = resetBeds;
     $$("#opsGap button").forEach((x) => x.onclick = () => setGap(+x.dataset.g));
     drawGapFig();
     const goSal = SK().debounce(load, 350);
@@ -269,8 +282,9 @@
     }));
     $("#opsRealClear").onclick = () => { O.real = { saline: "", kits: "", beds: "" }; ["saline", "kits", "beds"].forEach((k) => $(`#opsReal_${k}`).value = ""); markReal(); updateResets(); load(); };
     markReal();
-    $$("#opsH button").forEach((b) => b.onclick = () => { SK().setH(+b.dataset.h); $$("#opsH button").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); });
-    $$("#opsBasis button").forEach((b) => b.onclick = () => { O.basis = b.dataset.b; $$("#opsBasis button").forEach((x) => x.setAttribute("aria-pressed", x === b)); updateResets(); load(); });
+    // week / horizon / basis appear on both tabs and stay in step
+    $$(".ops-hseg button").forEach((b) => b.onclick = () => { SK().setH(+b.dataset.h); $$(".ops-hseg button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.h === b.dataset.h)); load(); });
+    $$(".ops-bseg button").forEach((b) => b.onclick = () => { O.basis = b.dataset.b; $$(".ops-bseg button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.b === b.dataset.b)); updateResets(); load(); });
     $$("#opsPolicy button").forEach((b) => b.onclick = () => {
       O.policy = b.dataset.p; $$("#opsPolicy button").forEach((x) => x.setAttribute("aria-pressed", x === b));
       $("#opsPolicyHelp").textContent = L().policyHelp[O.policy]; updateResets(); load();
@@ -287,19 +301,27 @@
   const anyReserve = () => Object.values(O.float).some((n) => n > 0);
   const anyReal = () => ["saline", "kits", "beds"].some((k) => O.real[k] !== "");
   function updateResets() {
-    $$("#tab-ops .ops-reset[data-reset]").forEach((b) => { const inp = $("#" + b.dataset.reset); b.hidden = !inp || +inp.value === +b.dataset.def; });
-    const changed = O.stock !== DEF.stock || O.crews !== DEF.crews || O.cap !== DEF.cap || O.life !== DEF.life
-      || O.ors !== DEF.ors || O.lead !== DEF.lead || O.packets !== DEF.packets || O.gap !== DEF.gap
-      || O.basis !== DEF.basis || O.policy !== DEF.policy || anyReal() || anyReserve();
-    const all = $("#opsResetAll"); if (all) all.hidden = !changed;
+    $$(".ops-reset[data-reset]").forEach((b) => { const inp = $("#" + b.dataset.reset); b.hidden = !inp || +inp.value === +b.dataset.def; });
+    const supChanged = O.stock !== DEF.stock || O.crews !== DEF.crews || O.life !== DEF.life || O.ors !== DEF.ors
+      || O.lead !== DEF.lead || O.packets !== DEF.packets || O.basis !== DEF.basis || O.policy !== DEF.policy || anyReal();
+    const bedChanged = O.cap !== DEF.cap || O.gap !== DEF.gap || O.basis !== DEF.basis || anyReserve();
+    const all = $("#opsResetAll"); if (all) all.hidden = !supChanged;
+    const rb = $("#opsResetBeds"); if (rb) rb.hidden = !bedChanged;
     const hr = $("#opsHospReset");
     if (hr) {
       hr.innerHTML = anyReserve() ? `<button type="button" class="ops-reset" id="opsClearReserve" title="${L().resetTip}">↺ ${L().clearReserve}</button>` : "";
       const cb = $("#opsClearReserve"); if (cb) cb.onclick = () => { O.float = {}; updateResets(); load(); };
     }
   }
-  function resetAll() {
-    Object.assign(O, DEF, { float: {}, real: { saline: "", kits: "", beds: "" } });
+  // each tab's reset only touches its own settings (plus the shared "plan on" choice)
+  function resetSupplies() {
+    ["stock", "crews", "life", "ors", "lead", "packets", "basis", "policy"].forEach((k) => O[k] = DEF[k]);
+    O.real = { saline: "", kits: "", beds: "" };
+    build(); load();
+  }
+  function resetBeds() {
+    ["cap", "gap", "basis"].forEach((k) => O[k] = DEF[k]);
+    O.float = {};
     build(); load();
   }
 
@@ -307,7 +329,7 @@
   const floatParam = () => Object.entries(O.float).filter(([, n]) => n > 0).map(([c, n]) => `${c}:${n}`).join(",") || undefined;
   async function load() {
     const my = ++O.seq, p = params();
-    $("#tab-ops").classList.add("busy");
+    $$("#tab-ops, #tab-beds").forEach((x) => x.classList.add("busy"));
     try {
       const [a, s, sal, bt] = await Promise.all([
         SK().api("/api/ops/allocate", { ...p, stock: O.stock, crews: O.crews, policy: O.policy, min_share: O.life || undefined, ors: O.ors || undefined,
@@ -325,7 +347,7 @@
       }
       render();
     } catch (e) { if (my === O.seq) SK().toast(e.message); }
-    finally { if (my === O.seq) $("#tab-ops").classList.remove("busy"); }
+    finally { if (my === O.seq) $$("#tab-ops, #tab-beds").forEach((x) => x.classList.remove("busy")); }
   }
 
   function markReal() {
@@ -373,8 +395,8 @@
   function render() {
     const T = L(), a = O.alloc, s = O.surge, S = SK().S;
     updateResets();
-    $("#opsWeek").textContent = SK().fmtDate(a.ref_date, true);
-    $("#opsTarget").textContent = `${T.target}: ${SK().fmtDate(a.target_date, true)}`;
+    $$(".ops-weekv").forEach((x) => x.textContent = SK().fmtDate(a.ref_date, true));
+    $$(".ops-targetv").forEach((x) => x.textContent = `${T.target}: ${SK().fmtDate(a.target_date, true)}`);
     // KPI cards
     const kp = ITEMS.map((k) => {
       const x = a.items[k], f = x.required ? x.allocated / x.required : 1, col = f >= 0.999 ? "#22C55E" : f >= 0.6 ? "#FACC15" : "#F43F5E";
@@ -580,7 +602,8 @@
   function open() { build(); load(); }
   document.addEventListener("click", (e) => {
     const b = e.target.closest("nav.tabs button");
-    if (b && b.dataset.tab === "ops") setTimeout(open, 0);
-    if (e.target.closest("#langEn, #langBn") && O.built && $("#tab-ops").classList.contains("active")) setTimeout(() => { build(); render(); }, 0);
+    if (b && (b.dataset.tab === "ops" || b.dataset.tab === "beds")) setTimeout(open, 0);
+    const shown = () => ["#tab-ops", "#tab-beds"].some((id) => $(id).classList.contains("active"));
+    if (e.target.closest("#langEn, #langBn") && O.built && shown()) setTimeout(() => { build(); render(); }, 0);
   });
 })();
