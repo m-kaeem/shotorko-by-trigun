@@ -899,6 +899,10 @@
     if (!quiet && S.fc) renderForecast(true);
   }
 
+  // shared with web/ops.js (Phase 2 operations tab)
+  window.SK = { S, api, t, loc, nf, fmtDate, cityName, tierName, toast, HEX, TEXT_ON, debounce, tween,
+    setDate: (d) => setDate(d), setH: (h) => setH(h), wardLabel: (id) => wardLabel(id), ward: (id) => byId.get(id) };
+
   // ------------------------------------------------------------------ boot
   async function boot() {
     try {

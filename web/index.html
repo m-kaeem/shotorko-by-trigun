@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Hind+Siliguri:wght@400;500;600;700&family=Exo+2:ital,wght@1,800;1,900&display=swap">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="ops.css">
 </head>
 <body>
 <header class="top reveal">
@@ -38,6 +39,7 @@
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button role="tab" data-tab="map" aria-selected="true" data-i="tabMap"></button>
     <button role="tab" data-tab="trust" aria-selected="false" data-i="tabTrust"></button>
+    <button role="tab" data-tab="ops" aria-selected="false" data-i="tabOps"></button>
     <button role="tab" data-tab="data" aria-selected="false" data-i="tabData"></button>
     <button role="tab" data-tab="how" aria-selected="false" data-i="tabHow"></button>
   </nav>
@@ -164,6 +166,9 @@
     </div>
   </section>
 
+  <!-- ================= OPERATIONS TAB (Phase 2: allocation + overflow routing, built by web/ops.js) ================= -->
+  <section class="tab" id="tab-ops" role="tabpanel"></section>
+
   <!-- ================= YOUR DATA TAB ================= -->
   <section class="tab" id="tab-data" role="tabpanel">
     <div class="hero"><div><h1 data-i="dataTitle"></h1><p data-i="dataText"></p></div></div>
@@ -202,5 +207,6 @@
 <script src="vendor/deck.gl-9.4.1.min.js"></script>
 <script src="i18n.js"></script>
 <script src="app.js"></script>
+<script src="ops.js"></script>
 </body>
 </html>
