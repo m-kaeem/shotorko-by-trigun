@@ -91,14 +91,14 @@ def surge_ep(date: str | None = None, h: int = Query(3, ge=2, le=4), rain: float
              cap_scale: float = Query(1.0, ge=0.25, le=3.0, description="multiplier on baseline bed capacity"),
              max_util: float = Query(1.0, ge=0.5, le=1.0, description="highest bed occupancy a receiving ward may reach"),
              floating: str | None = Query(None, description="reserve beds per city, e.g. 'Gazipur:2,Dhaka North:1'"),
-             bedding: float = Query(0.0, ge=0.0, le=0.5, description="emergency bedding: extra floor beds per ward, share of its beds"),
+             per_gap: int = Query(0, ge=0, le=2, description="floor beds between beds: mattresses per gap (0 = off)"),
              city: str | None = None):
     fc, ctx = _frame(date, h, rain, temp, hum, mode, city)
     pos = _api().POS
     try:
         pools = parse_city_counts(floating, CITY_ORDER)
         out = route(fc, _capacity(), scale=cap_scale, basis=basis, positions=pos, max_util=max_util, floating=pools,
-                    bedding=bedding)
+                    per_gap=per_gap)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return {**ctx, **out, "positions": {k: pos[k] for k in fc.ward_id}}

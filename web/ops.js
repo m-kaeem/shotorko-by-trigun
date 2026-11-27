@@ -23,9 +23,11 @@
       life: "Minimum for every ward", lifeHelp: "guaranteed share of each supply before priority sharing (0% = off)",
       real: "Or type what's in the warehouse", realNote: "Real counts replace the stock slider for that item.", clear: "Clear",
       reset: "Reset", resetAll: "Reset all", resetTip: "Back to the default setting", clearReserve: "Clear reserve beds",
-      bed: "Emergency bedding", bedHelp: "extra mattresses or cots between beds and in corridors, as a share of each ward's beds (for its own patients)",
-      bedNote: "Used after patients are moved to empty real beds in the city, and before reserve beds. It's crowded, so it's a last resort.",
-      onFloor: "on floor beds", useBedding: "Use emergency bedding (25%)",
+      bed: "Floor beds between beds", gapOpts: ["Off", "1 per gap", "2 per gap"],
+      bedHelp: "A mattress goes in the space between two beds. Beds stand in a row, so a ward with 4 beds has 3 gaps.",
+      gapEx: (b, g, n) => `${b} beds → ${g} gaps → up to ${n} floor beds`,
+      bedNote: "Used after patients are moved to empty real beds in the city, and before reserve beds. For the ward's own patients only. It's crowded, so it's a last resort.",
+      onFloor: "on floor beds", floorOf: (u, c) => `${u} of ${c} floor spaces used`, useBedding: "Use floor beds between beds",
       salTitle: "Saline outlook", salSub: "From our own forecast. IV saline stock isn't public, so this works without it.",
       lvl: { normal: "Normal", high: "High", surge: "Surge alarm" },
       salHead: (w, n, x, p) => `Week of ${w} needs ${n} IV saline bags: ${x}× a busy week, more than ${p}% of weeks since 2016.`,
@@ -89,9 +91,11 @@
       life: "প্রতিটি ওয়ার্ডের ন্যূনতম", lifeHelp: "অগ্রাধিকার অনুযায়ী ভাগের আগে প্রতিটি জিনিসের নিশ্চিত অংশ (০% = বন্ধ)",
       real: "অথবা গুদামে আসলে কত আছে লিখুন", realNote: "আসল সংখ্যা দিলে ওই জিনিসের জন্য স্টক স্লাইডার আর লাগবে না।", clear: "মুছুন",
       reset: "রিসেট", resetAll: "সব রিসেট", resetTip: "ডিফল্ট সেটিংয়ে ফিরুন", clearReserve: "সংরক্ষিত বেড মুছুন",
-      bed: "জরুরি বিছানা", bedHelp: "বেডের ফাঁকে ও করিডোরে বাড়তি তোষক বা খাট, প্রতিটি ওয়ার্ডের বেডের অংশ হিসেবে (নিজের রোগীদের জন্য)",
-      bedNote: "শহরের খালি আসল বেডে রোগী পাঠানোর পরে, আর সংরক্ষিত বেডের আগে ব্যবহার হয়। ভিড় হয়, তাই এটা শেষ উপায়।",
-      onFloor: "জন মেঝের বিছানায়", useBedding: "জরুরি বিছানা ব্যবহার করুন (২৫%)",
+      bed: "দুই বেডের মাঝখানের বিছানা", gapOpts: ["বন্ধ", "প্রতি ফাঁকে ১টি", "প্রতি ফাঁকে ২টি"],
+      bedHelp: "দুই বেডের মাঝের জায়গায় একটি তোষক রাখা হয়। বেড এক সারিতে থাকে, তাই ৪টি বেডের ওয়ার্ডে ৩টি ফাঁক।",
+      gapEx: (b, g, n) => `${b}টি বেড → ${g}টি ফাঁক → সর্বোচ্চ ${n}টি মেঝের বিছানা`,
+      bedNote: "শহরের খালি আসল বেডে রোগী পাঠানোর পরে, আর সংরক্ষিত বেডের আগে ব্যবহার হয়। শুধু ওই ওয়ার্ডের নিজের রোগীদের জন্য। ভিড় হয়, তাই এটা শেষ উপায়।",
+      onFloor: "জন মেঝের বিছানায়", floorOf: (u, c) => `${c}টির মধ্যে ${u}টি মেঝের জায়গা ব্যবহৃত`, useBedding: "বেডের মাঝখানের বিছানা ব্যবহার করুন",
       salTitle: "স্যালাইনের পূর্বাভাস", salSub: "আমাদের নিজস্ব পূর্বাভাস থেকে। IV স্যালাইনের স্টক প্রকাশ্য নয়, তাই এটা স্টক ছাড়াই কাজ করে।",
       lvl: { normal: "স্বাভাবিক", high: "বেশি", surge: "সতর্কবার্তা" },
       salHead: (w, n, x, p) => `${w} সপ্তাহে ${n}টি IV স্যালাইন লাগবে: ব্যস্ত সপ্তাহের ${x} গুণ, ২০১৬ থেকে ${p}% সপ্তাহের চেয়ে বেশি।`,
@@ -148,8 +152,8 @@
   // register the nav label so app.js's applyLang() can fill it
   Object.entries(STR).forEach(([l, o]) => { if (window.I18N && window.I18N[l]) window.I18N[l].tabOps = o.tabOps; });
 
-  const DEF = { stock: 0.6, crews: 60, cap: 1.0, life: 0, basis: "expected", policy: "weighted", ors: 0, lead: 7, packets: "", bed: 0 };   // what Reset goes back to
-  const O = { stock: 0.6, crews: 60, cap: 1.0, float: {}, life: 0, bed: 0, ors: 0, lead: 7, packets: "", sal: null, bt: null, real: { saline: "", kits: "", beds: "" }, basis: "expected", policy: "weighted", city: null, alloc: null, surge: null, prevStatus: {}, built: false, seq: 0 };
+  const DEF = { stock: 0.6, crews: 60, cap: 1.0, life: 0, basis: "expected", policy: "weighted", ors: 0, lead: 7, packets: "", gap: 0 };   // what Reset goes back to
+  const O = { stock: 0.6, crews: 60, cap: 1.0, float: {}, life: 0, gap: 0, ors: 0, lead: 7, packets: "", sal: null, bt: null, real: { saline: "", kits: "", beds: "" }, basis: "expected", policy: "weighted", city: null, alloc: null, surge: null, prevStatus: {}, built: false, seq: 0 };
   const SK = () => window.SK;
   const L = () => STR[SK().S.lang] || STR.en;
   const loc = (x) => SK().loc(x);
@@ -214,7 +218,10 @@
         <p class="ops-btsum" id="opsBtSum"></p><small class="ops-muted">${T.btNote}</small></div>
       <h2 class="h-font ops-h2">${T.surgeTitle}</h2>
       <p class="ops-muted ops-p">${T.surgeSub}<br><small>${T.capRule}</small></p>
-      <div class="ops-hospctl">${slider("opsBed", T.bed, T.bedHelp, 0, 50, 5, Math.round(O.bed * 100), "%", Math.round(DEF.bed * 100))}<small class="ops-muted">${T.bedNote}</small></div>
+      <div class="card ops-hospctl"><div class="ops-gapctl"><span class="eyebrow">${T.bed}</span>
+          <div class="seg" id="opsGap">${T.gapOpts.map((o, i) => `<button data-g="${i}" aria-pressed="${O.gap === i}">${o}</button>`).join("")}</div>
+          <small class="ops-muted">${T.bedHelp}</small><small class="ops-muted">${T.bedNote}</small></div>
+        <div class="ops-gapfig" id="opsGapFig"></div></div>
       <div id="opsHospReset"></div>
       <div class="ops-cities" id="opsCities"></div>
       <div id="opsEsc"></div>
@@ -245,11 +252,12 @@
       if (inp.id === "opsCap") O.cap = v / 100;
       if (inp.id === "opsLife") O.life = v / 100;
       if (inp.id === "opsOrs") O.ors = v / 100;
-      if (inp.id === "opsBed") O.bed = v / 100;
       updateResets(); go();
     }));
     $$("#tab-ops .ops-reset[data-reset]").forEach((b) => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); setSlider(b.dataset.reset, +b.dataset.def); });
     $("#opsResetAll").onclick = resetAll;
+    $$("#opsGap button").forEach((x) => x.onclick = () => setGap(+x.dataset.g));
+    drawGapFig();
     const goSal = SK().debounce(load, 350);
     $("#opsLead").addEventListener("input", (e) => { O.lead = Math.max(0, Math.min(60, Math.floor(+e.target.value) || 0)); updateResets(); goSal(); });
     $("#opsPackets").addEventListener("input", (e) => { const v = e.target.value.trim(); O.packets = v === "" ? "" : String(Math.max(0, +v || 0)); updateResets(); goSal(); });
@@ -281,7 +289,7 @@
   function updateResets() {
     $$("#tab-ops .ops-reset[data-reset]").forEach((b) => { const inp = $("#" + b.dataset.reset); b.hidden = !inp || +inp.value === +b.dataset.def; });
     const changed = O.stock !== DEF.stock || O.crews !== DEF.crews || O.cap !== DEF.cap || O.life !== DEF.life
-      || O.ors !== DEF.ors || O.lead !== DEF.lead || O.packets !== DEF.packets || O.bed !== DEF.bed
+      || O.ors !== DEF.ors || O.lead !== DEF.lead || O.packets !== DEF.packets || O.gap !== DEF.gap
       || O.basis !== DEF.basis || O.policy !== DEF.policy || anyReal() || anyReserve();
     const all = $("#opsResetAll"); if (all) all.hidden = !changed;
     const hr = $("#opsHospReset");
@@ -304,7 +312,7 @@
       const [a, s, sal, bt] = await Promise.all([
         SK().api("/api/ops/allocate", { ...p, stock: O.stock, crews: O.crews, policy: O.policy, min_share: O.life || undefined, ors: O.ors || undefined,
           saline_stock: O.real.saline || undefined, kits_stock: O.real.kits || undefined, beds_stock: O.real.beds || undefined }),
-        SK().api("/api/ops/surge", { ...p, cap_scale: O.cap, floating: floatParam(), bedding: O.bed || undefined }),
+        SK().api("/api/ops/surge", { ...p, cap_scale: O.cap, floating: floatParam(), per_gap: O.gap || undefined }),
         SK().api("/api/ops/saline", { date: p.date, mode: p.mode, rain: p.rain, temp: p.temp, hum: p.hum, lead_days: O.lead,
           ors: O.ors || undefined, packets: O.packets || undefined }),
         SK().api("/api/ops/supply-backtest", { stock: O.stock, h: p.h }),
@@ -333,6 +341,31 @@
         <button class="btn ops-fixbtn" data-fix="stock" data-p="${p}">${T.fixTry(p)}</button></div>
       ${O.life < 0.5 ? `<div class="ops-fixopt"><span>${lifeFits ? T.fixLife : T.fixNoStock}${lifeFits ? `<br><small>${T.fixLifeNote}</small>` : ""}</span>
         ${lifeFits ? `<button class="btn ops-fixbtn" data-fix="life">${T.fixLifeBtn}</button>` : ""}</div>` : ""}</div>`;
+  }
+  function setGap(g) {
+    O.gap = g; $$("#opsGap button").forEach((x) => x.setAttribute("aria-pressed", +x.dataset.g === g));
+    drawGapFig(); updateResets(); load();
+  }
+  // a row of 4 beds with mattresses in the gaps between them
+  function drawGapFig() {
+    const el = $("#opsGapFig"); if (!el) return;
+    const T = L(), n = 4, bw = 34, bh = 62, gw = 30, x0 = 12, y0 = 14, per = O.gap;
+    let svg = "";
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * (bw + gw);
+      svg += `<rect x="${x}" y="${y0}" width="${bw}" height="${bh}" rx="6" class="gf-bed"/><rect x="${x + 5}" y="${y0 + 5}" width="${bw - 10}" height="12" rx="4" class="gf-pil"/>`;
+      if (i < n - 1) {
+        const gx = x + bw + 4, gwid = gw - 8;
+        if (per === 0) svg += `<rect x="${gx}" y="${y0 + 8}" width="${gwid}" height="${bh - 16}" rx="4" class="gf-gap"/>`;
+        else for (let k = 0; k < per; k++) {
+          const hh = per === 1 ? bh - 16 : (bh - 20) / 2;
+          svg += `<rect x="${gx}" y="${y0 + 8 + k * (hh + 4)}" width="${gwid}" height="${hh}" rx="4" class="gf-mat"/>`;
+        }
+      }
+    }
+    const W = x0 * 2 + n * bw + (n - 1) * gw;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${y0 + bh + 34}" role="img" aria-label="${T.gapEx(n, n - 1, (n - 1) * per)}">${svg}
+      <text x="${W / 2}" y="${y0 + bh + 24}" text-anchor="middle" class="gf-txt">${T.gapEx(loc(n), loc(n - 1), loc((n - 1) * per))}</text></svg>`;
   }
   function setSlider(id, v) {
     const inp = $("#" + id); if (!inp) return;
@@ -394,7 +427,7 @@
         <span class="eyebrow">${SK().cityName(x.city)}</span><span class="ops-cst ${x.status}">${T.cityStatus[x.status]}</span>
         <div class="ops-gauge"><i class="b" style="width:${Math.min(100, ub * 100)}%"></i><i class="a" style="width:${Math.min(100, ua * 100)}%"></i>${ub > 1 ? `<em style="left:${100 / ub}%"></em>` : ""}</div>
         <div class="ops-cnums"><span><b>${pct(ub)}</b>${T.before}</span><span><b>${pct(ua)}</b>${T.after}</span></div>
-        <small>${loc(x.required)} / ${loc(x.capacity)} ${T.items.hospital_beds_required.toLowerCase()} · <b>${loc(x.headroom)}</b> ${T.headroom}${x.transferred ? ` · <b>${loc(x.transferred)}</b> ${T.moved}` : ""}${x.emergency_used ? ` · <b class="amber">${loc(x.emergency_used)}</b> ${T.onFloor}` : ""}${x.unresolved ? ` · <b class="red">${loc(x.unresolved)}</b> ${T.unresolvedN}` : ""}</small>
+        <small>${loc(x.required)} / ${loc(x.capacity)} ${T.items.hospital_beds_required.toLowerCase()} · <b>${loc(x.headroom)}</b> ${T.headroom}${x.transferred ? ` · <b>${loc(x.transferred)}</b> ${T.moved}` : ""}${x.emergency_used ? ` · <b class="amber">${loc(x.emergency_used)}</b> ${T.onFloor}` : ""}${x.emergency_cap ? `<br><span class="ops-floorcap">▭ ${T.floorOf(loc(x.emergency_used), loc(x.emergency_cap))}</span>` : ""}${x.unresolved ? ` · <b class="red">${loc(x.unresolved)}</b> ${T.unresolvedN}` : ""}</small>
         <div class="ops-reserve" title="${T.reserveHelp}"><span>${T.reserve}</span>
           <button class="ops-rb" data-rc="${x.city}" data-d="-1" aria-label="${T.reserve} −">−</button><b>${loc(x.floating_pool || 0)}</b><button class="ops-rb" data-rc="${x.city}" data-d="1" aria-label="${T.reserve} +">+</button>
           ${x.floating_pool ? `<small>${T.reserveUsed(loc(x.floating_used), loc(x.floating_pool))}</small>` : ""}</div></div>`;
@@ -411,8 +444,8 @@
     });
     const esc = s.cities.filter((x) => x.unresolved);
     $("#opsEsc").innerHTML = esc.length ? `<div class="action alert" style="flex-direction:column;gap:6px">${esc.map((x) => `<div class="ops-escrow"><span>⚠ ${T.escalate(SK().cityName(x.city), x.unresolved)}</span>
-      <span class="ops-escbtns">${O.bed < 0.25 ? `<button class="btn ops-fix ops-bedfix">${T.useBedding}</button>` : ""}<button class="btn ops-fix" data-fc="${x.city}" data-n="${x.unresolved}">${T.openReserve(x.unresolved)}</button></span></div>`).join("")}</div>` : "";
-    $$("#opsEsc .ops-bedfix").forEach((b) => b.onclick = () => setSlider("opsBed", 25));
+      <span class="ops-escbtns">${O.gap === 0 ? `<button class="btn ops-fix ops-bedfix">${T.useBedding}</button>` : ""}<button class="btn ops-fix" data-fc="${x.city}" data-n="${x.unresolved}">${T.openReserve(x.unresolved)}</button></span></div>`).join("")}</div>` : "";
+    $$("#opsEsc .ops-bedfix").forEach((b) => b.onclick = () => setGap(1));
     $$("#opsEsc .ops-fix[data-fc]").forEach((b) => b.onclick = () => {
       const c = b.dataset.fc; O.float[c] = (O.float[c] || 0) + +b.dataset.n; O.city = c; load();
     });
@@ -429,7 +462,7 @@
     $("#opsWardTable").innerHTML = `<thead><tr>${T.wCols.map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${ws.map((w) => `
       <tr><td><b>${wshort(w.ward)}</b> <span class="ops-st ${w.status}">${T.wStatus[w.status]}</span></td><td>${loc(w.required)}</td><td>${loc(w.capacity)}</td>
       <td class="${w.net < 0 ? "red" : "green"}"><b>${w.net > 0 ? "+" : ""}${loc(w.net)}</b></td><td>${w.sent ? loc(w.sent) : "–"}</td><td>${w.received ? loc(w.received) : "–"}</td>
-      <td>${w.emergency ? `<b class="amber">+${loc(w.emergency)}</b>` : "–"}</td>
+      <td>${w.emergency ? `<b class="amber">+${loc(w.emergency)}</b>` : "–"}${w.emergency_cap ? `<small class="ops-muted"> / ${loc(w.emergency_cap)}</small>` : ""}</td>
       <td>${w.floating ? `<b class="purple">+${loc(w.floating)}</b>` : "–"}</td>
       <td>${w.util_after != null ? pct(w.util_after) : "–"}</td></tr>`).join("")}</tbody>`;
   }

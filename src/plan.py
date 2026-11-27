@@ -71,13 +71,13 @@ def _simulation(engine, date, h, deployments, scenario):
 
 def build_plans(engine, date: str, h: int, stock_pct: float = 100.0, total_crews: int = 20,
                 deployments: dict | None = None, scenario=None, positions: dict | None = None,
-                floating_beds=None, min_share_pct: float = 0.0, emergency_bedding_pct: float = 0.0) -> list[dict]:
+                floating_beds=None, min_share_pct: float = 0.0, floor_beds_per_gap: int = 0) -> list[dict]:
     """One ward plan per ward (all 60). stock_pct is a percent (30-100).
 
     floating_beds (optional, Phase 2 extra): reserve beds per city, {city: beds} or one int for every
     city. They are opened, after transfers, at wards whose patients the city's beds can't take.
     min_share_pct (optional): lifeline, 0-50. Every ward first gets at least this % of each supply.
-    emergency_bedding_pct (optional): 0-50, extra floor beds per ward as a % of its beds."""
+    floor_beds_per_gap (optional): 0-2 mattresses in each gap between two beds ((beds - 1) gaps per ward)."""
     if h not in C.HORIZONS:
         raise ValueError("h must be 2, 3 or 4")
     total_crews = int(total_crews)
@@ -86,8 +86,8 @@ def build_plans(engine, date: str, h: int, stock_pct: float = 100.0, total_crews
     _ENGINES[id(engine)] = engine
     fc = _forecast(id(engine), str(date), int(h), _scenario_key(scenario)).copy()
 
-    if not 0 <= float(emergency_bedding_pct) <= 50:
-        raise ValueError("emergency_bedding_pct must be between 0 and 50")
+    if int(floor_beds_per_gap) not in (0, 1, 2):
+        raise ValueError("floor_beds_per_gap must be 0, 1 or 2")
     if not 0 <= float(min_share_pct) <= 50:
         raise ValueError("min_share_pct must be between 0 and 50")
     alloc = allocate(fc, stock_pct=float(stock_pct) / 100.0, crews=total_crews, basis="expected",
@@ -108,7 +108,7 @@ def build_plans(engine, date: str, h: int, stock_pct: float = 100.0, total_crews
         teams = {w: by_ward[w]["crews_assigned"] for w in fc.ward_id}
 
     surge = route(fc, load_capacity(str(engine.bundle["risk"]["fit_end"])), positions=_positions(positions),
-                  floating=floating_beds, bedding=float(emergency_bedding_pct) / 100.0)
+                  floating=floating_beds, per_gap=int(floor_beds_per_gap))
     s_ward = {w["ward"]: w for w in surge["wards"]}
     sends: dict = {}
     for t in surge["transfers"]:

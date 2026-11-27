@@ -221,30 +221,36 @@ def test_page_files_are_revalidated_so_updates_show():
     assert "no-cache" not in (c.get("/api/health").headers.get("cache-control") or "")
 
 
-def test_emergency_bedding_after_transfers_own_ward_only_and_before_reserve():
+def test_floor_beds_between_beds_after_transfers_own_ward_only_and_before_reserve():
     cap = pd.Series({"A1": 2, "A2": 5, "A3": 4, "B1": 2, "B2": 2})
     base = route(_fc(), cap)
-    out = route(_fc(), cap, bedding=0.5)
+    out = route(_fc(), cap, per_gap=1)
     assert out["transfers"] == base["transfers"]                  # real beds elsewhere are used first
     for w in out["wards"]:
+        assert w["gaps"] == max(0, w["capacity"] - 1)             # beds in a row: b beds, b - 1 gaps
+        assert w["emergency_cap"] == w["gaps"] * 1
         assert w["required"] == w["local"] + w["sent"] + w["emergency"] + w["floating"] + w["unresolved"]
-        assert w["emergency"] <= w["emergency_cap"] == int(np.floor(w["capacity"] * 0.5 + 0.5))
-        if w["sent"] == 0 and w["required"] <= w["capacity"]:
-            assert w["emergency"] == 0                            # only wards with their own overflow use it
+        assert w["emergency"] <= w["emergency_cap"]
+        if w["required"] <= w["capacity"]:
+            assert w["emergency"] == 0                            # only wards with their own overflow use them
     assert sum(w["unresolved"] for w in out["wards"]) < sum(w["unresolved"] for w in base["wards"])
-    both = route(_fc(), cap, bedding=0.5, floating={"A": 5, "B": 5})
+    two = route(_fc(), cap, per_gap=2)
+    assert all(w["emergency_cap"] == 2 * w["gaps"] for w in two["wards"])
+    both = route(_fc(), cap, per_gap=1, floating={"A": 5, "B": 5})
     alone = route(_fc(), cap, floating={"A": 5, "B": 5})
     assert both["totals"]["floating_used"] <= alone["totals"]["floating_used"]   # floor beds come before reserve beds
     assert any(w["status"] == "crowded" for w in out["wards"])
 
 
-def test_emergency_bedding_endpoint_and_plans():
+def test_floor_beds_endpoint_and_plans():
     from fastapi.testclient import TestClient
     from src.api import app
     c = TestClient(app)
-    j = c.get("/api/ops/surge", params={"date": "2025-07-07", "cap_scale": 0.85, "bedding": 0.25}).json()
+    j = c.get("/api/ops/surge", params={"date": "2025-07-07", "cap_scale": 0.85, "per_gap": 1}).json()
     j0 = c.get("/api/ops/surge", params={"date": "2025-07-07", "cap_scale": 0.85}).json()
     assert j["totals"]["emergency_used"] > 0 and j["totals"]["unresolved"] < j0["totals"]["unresolved"]
-    assert c.get("/api/ops/surge", params={"bedding": 0.9}).status_code == 422
-    p = c.get("/api/plan", params={"date": "2025-07-07", "emergency_bedding_pct": 25}).json()["plans"]
+    assert j["totals"]["emergency_cap"] == sum(max(0, w["capacity"] - 1) for w in j["wards"])
+    assert c.get("/api/ops/surge", params={"per_gap": 3}).status_code == 422
+    p = c.get("/api/plan", params={"date": "2025-07-07", "floor_beds_per_gap": 1}).json()["plans"]
     assert all("emergency_beds" in x["overflow"] for x in p)
+    assert sum(x["overflow"]["emergency_beds"] for x in p) >= 1

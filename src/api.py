@@ -171,7 +171,7 @@ def forecast(date: str | None = None, rain: float = Query(1.0, ge=0, le=3), temp
 
 # ------------------------------------------------------------------ Phase 2 ward plans (docs/PHASE2_PLAN_CONTRACT.md)
 def _plans(date, h, stock_pct, total_crews, deployments=None, rain=1.0, temp=0.0, hum=0.0, floating=None,
-           min_share_pct=0.0, emergency_bedding_pct=0.0):
+           min_share_pct=0.0, floor_beds_per_gap=0):
     from .plan import build_plans, totals
     date = date or "2025-07-07"
     if date not in VALID_SET:
@@ -183,7 +183,7 @@ def _plans(date, h, stock_pct, total_crews, deployments=None, rain=1.0, temp=0.0
         plans = build_plans(ENGINE, date, h, stock_pct=stock_pct, total_crews=total_crews,
                             deployments=deployments, scenario=sc if sc.active else None, positions=POS,
                             floating_beds=floating or None, min_share_pct=min_share_pct,
-                            emergency_bedding_pct=emergency_bedding_pct)
+                            floor_beds_per_gap=floor_beds_per_gap)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return {"plans": plans, "totals": totals(plans)}
@@ -195,13 +195,13 @@ def plan(date: str | None = None, h: int = Query(3, ge=2, le=4), stock_pct: floa
          temp: float = Query(0.0, ge=-5, le=5), hum: float = Query(0.0, ge=-30, le=30),
          floating_beds: str | None = Query(None, description="reserve beds per city, e.g. 'Gazipur:2'"),
          min_share_pct: float = Query(0.0, ge=0, le=50, description="lifeline: guaranteed % of need per ward"),
-         emergency_bedding_pct: float = Query(0.0, ge=0, le=50, description="extra floor beds per ward, % of its beds")):
+         floor_beds_per_gap: int = Query(0, ge=0, le=2, description="mattresses per gap between two beds (0 = off)")):
     from .surge import CITY_ORDER, parse_city_counts
     try:
         floating = parse_city_counts(floating_beds, CITY_ORDER)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return _plans(date, h, stock_pct, total_crews, None, rain, temp, hum, floating, min_share_pct, emergency_bedding_pct)
+    return _plans(date, h, stock_pct, total_crews, None, rain, temp, hum, floating, min_share_pct, floor_beds_per_gap)
 
 
 @app.post("/api/plan/simulate")
@@ -226,7 +226,7 @@ async def plan_simulate(request: Request):
         raise HTTPException(400, "floating_beds must be {city: beds} or one number for every city")
     return _plans(b.get("date"), h, stock, crews, dep, float(b.get("rain", 1.0)), float(b.get("temp", 0.0)),
                   float(b.get("hum", 0.0)), floating, float(b.get("min_share_pct", 0.0)),
-                  float(b.get("emergency_bedding_pct", 0.0)))
+                  int(b.get("floor_beds_per_gap", 0)))
 
 
 @app.get("/api/ward/{ward_id}")
