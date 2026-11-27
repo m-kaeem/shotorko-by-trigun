@@ -182,7 +182,7 @@ body{font-family:"Book Antiqua","Palatino Linotype",Palatino,Georgia,"Nirmala UI
 .lh .en{font-size:14px;line-height:1.45;font-weight:700;letter-spacing:.02em;text-transform:uppercase;font-family:"Times New Roman",Times,serif}
 .seal{width:98px;height:98px;padding:16px;border-radius:50%;border:2px solid var(--ink);display:grid;place-items:center;text-align:center;position:relative}
 .seal::before{content:"";position:absolute;inset:5px;border-radius:50%;border:1px solid var(--ink)}
-.seal b{font-size:15px;letter-spacing:.06em}.lh .seal small{display:block;font-size:9px;font-weight:600;line-height:1.25;margin-top:3px;white-space:nowrap}
+.seal b{font-size:15px;letter-spacing:.06em}.lh .seal small{display:block;font-size:11px;font-weight:600;line-height:1.25;margin-top:3px;white-space:nowrap}
 .ref{display:flex;justify-content:space-between;gap:16px;margin-top:26px;font-size:15px}
 h1{text-align:center;font-size:21px;margin:26px 0 4px;text-decoration:underline;text-underline-offset:4px}
 .subj{margin:14px 0 4px;font-size:15.5px;line-height:1.55}
@@ -267,7 +267,7 @@ def brief_html(plan: dict, lang: str = "en", standalone_fonts: bool = True) -> s
 <main class="sheet">
 <header class="lh">
   <div class="bn">{e(corp_bn)}<br>স্বাস্থ্য বিভাগ<br>{e(town_bn)}, বাংলাদেশ</div>
-  <div class="seal" aria-label="{lab('Office seal', 'দপ্তরের সিল')}"><div><b>{e(N['city_code'])}</b><small class="bn">স্বাস্থ্য বিভাগ</small></div></div>
+  <div class="seal" aria-label="{lab('Office seal', 'দপ্তরের সিল')}"><div><b>{e(N['city_code'])}</b><small class="bn">স্বাস্থ্য</small></div></div>
   <div class="en">{e(corp_en)}<br>Health Department<br>{e(town_en)}, Bangladesh</div>
 </header>
 <div class="ref"><span>{lab('No.', 'স্মারক নং')} {_memo_no(plan, lang)}</span><span>{lab('Date', 'তারিখ')}: {e(N['issued'])}</span></div>
