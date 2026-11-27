@@ -1,0 +1,17 @@
+*Shotorko dengue alert: Dhaka North, Ward 09*
+Risk: *Critical* (76/100)
+Week of 28 Jul 2025: ~*18* cases expected (7–21)
+
+*Supplies (allocated / required)*
+• Saline bags: 35 / 42  ⚠ short 7
+• Test kits: 18 / 21  ⚠ short 3
+• Hospital beds: 5 / 6  ⚠ short 1
+
+*Partial supply deficit*: escalate to the city store.
+
+Spray teams assigned: *1*
+Bed overflow to: DNCC_Ward_01 (1), DNCC_Ward_02 (1)
+
+Action: Send spray teams now, clear standing water, alert clinics and ready beds.
+Dengue hospitals: DNCC Dedicated Hospital (Mohakhali), Kurmitola General Hospital
+Health line: 16263

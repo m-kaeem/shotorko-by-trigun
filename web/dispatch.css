@@ -1,0 +1,70 @@
+/* Dispatch centre page (Phase 2, Requirement 4). Reuses styles.css tokens and the glass theme. */
+.dp-back{text-decoration:none}
+.dp-controls{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;padding:14px 16px}
+.dp-controls label,.dp-field{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+.dp-controls select{border:1px solid var(--glass-line);border-radius:10px;background:#0E1628;color:var(--ink);padding:7px 10px;font-size:13px;max-width:200px}
+.dp-controls select:focus-visible,.dp-ward:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+.dp-grid{display:grid;grid-template-columns:minmax(280px,380px) minmax(0,1fr);gap:16px;align-items:start}
+.dp-list{display:flex;flex-direction:column;gap:10px;padding:14px;max-height:calc(100vh - 150px);position:sticky;top:84px}
+.dp-list-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dp-wards{display:flex;flex-direction:column;gap:6px;overflow:auto;padding-right:2px}
+.dp-ward{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;cursor:pointer;
+  padding:9px 11px;border-radius:12px;border:1px solid var(--glass-line);background:rgba(255,255,255,.03);color:var(--ink);font:inherit}
+.dp-ward:hover{border-color:rgba(34,211,238,.5)}
+.dp-ward[aria-selected="true"]{border-color:var(--cyan);background:rgba(34,211,238,.10)}
+.dp-ward .rk{font-family:"Space Grotesk",Inter,sans-serif;font-weight:700;color:var(--muted);font-size:13px}
+.dp-ward b{display:block;font-size:14px}
+.dp-ward small{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.dp-ward .def{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.def.critical{color:#FFE4E6;background:rgba(244,63,94,.18);border:1px solid rgba(244,63,94,.5)}
+.def.partial{color:#FED7AA;background:rgba(251,146,60,.15);border:1px solid rgba(251,146,60,.45)}
+.def.none{color:#86EFAC;background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.4)}
+
+.dp-view{display:flex;flex-direction:column;gap:12px;padding:18px;min-height:420px}
+.dp-view-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.dp-view-head h2{margin:0;font-family:"Space Grotesk","Hind Siliguri",sans-serif;font-size:24px}
+.dp-view-head .sub{font-size:13px;color:var(--muted);margin-top:4px}
+.dp-supplies{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.dp-supplies div{padding:10px 12px;border-radius:12px;border:1px solid var(--glass-line);background:rgba(255,255,255,.03)}
+.dp-supplies small{display:block;font-size:12px;color:var(--muted)}
+.dp-supplies b{font-family:"Space Grotesk",Inter,sans-serif;font-size:20px}
+.dp-supplies b span{font-size:13px;color:var(--muted);font-weight:500}
+.dp-supplies .short{border-color:rgba(244,63,94,.5)}
+.dp-supplies .short em{display:block;font-style:normal;font-size:12px;color:#FDA4AF;margin-top:2px}
+
+.disp-tabs{align-self:flex-start}
+.disp-msg{white-space:pre-wrap;word-break:break-word;font-size:14.5px;line-height:1.55;color:var(--ink);background:rgba(255,255,255,.04);border:1px solid var(--glass-line);border-radius:12px;padding:12px 14px}
+.disp-msg.sms{max-width:38ch;border-radius:16px 16px 16px 4px;background:rgba(34,211,238,.10);border-color:rgba(34,211,238,.35)}
+.disp-msg b{color:#fff}
+.disp-meta{font-size:12px;color:var(--muted)}
+.disp-frame{border:1px solid var(--glass-line);border-radius:12px;overflow:hidden;height:560px;background:#fff}
+.disp-frame iframe{width:125%;height:125%;border:0;transform:scale(.8);transform-origin:0 0}
+.disp-actions{display:flex;gap:8px;flex-wrap:wrap}
+.disp-primary{background:var(--grad)!important;border-color:transparent!important;color:#07101F!important;font-weight:600;text-decoration:none}
+.disp-note{margin:0;font-size:12px;color:var(--muted)}
+.dp-foot{text-align:center}
+.dp-empty{color:var(--muted);font-size:14px;padding:20px 4px}
+
+@media (max-width:900px){
+  .dp-grid{grid-template-columns:1fr}
+  .dp-list{position:static;max-height:420px}
+  .dp-supplies{grid-template-columns:1fr}
+  .disp-frame{height:460px}
+}
+.dp-wards,.disp-msg{scrollbar-color:rgba(255,255,255,.22) transparent;scrollbar-width:thin}
+
+/* automatic SMS: gateway indicator, send buttons, per-ward status */
+.dp-head-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.gw{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);padding:6px 11px;border-radius:999px;border:1px solid var(--glass-line);background:rgba(255,255,255,.03)}
+.gw i{width:8px;height:8px;border-radius:99px;background:#93A1BD}
+.gw.ok i{background:#22C55E}.gw.down i{background:#F43F5E}.gw.dry i{background:#FACC15}
+.sms-st{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap;border:1px solid var(--glass-line);color:var(--ink-2)}
+.sms-st.delivered,.sms-st.sent{color:#86EFAC;border-color:rgba(34,197,94,.45)}
+.sms-st.queued,.sms-st.sending{color:#67E8F9;border-color:rgba(34,211,238,.45)}
+.sms-st.failed,.sms-st.skipped{color:#FDA4AF;border-color:rgba(244,63,94,.5)}
+.sms-st.dry-run{color:#FDE68A;border-color:rgba(250,204,21,.45)}
+.dp-ward .tags{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.sms-log{font-size:12.5px;color:var(--muted)}
+.sms-log b{color:var(--ink-2);font-weight:600}
+.btn:disabled{opacity:.5;cursor:progress}

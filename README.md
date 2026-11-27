@@ -28,9 +28,16 @@ The app opens at **http://localhost:8000**. No API keys, no Node.js and no train
 Optional commands:
 
 ```bash
-python -m pytest -q      # verify the lag pipeline (no leakage, correct ward-level lags), the model and the API
-python -m src.train      # retrain all models from the CSV (~2.5 min), rewrites models/ and artifacts/
+python -m pytest -q          # lag pipeline (no leakage), model, API, and the offline kill-switch tests
+python -m src.train          # retrain all models from the CSV (~2.5 min), rewrites models/ and artifacts/
+python -m src.export_samples # regenerate exports/: sample SMS, WhatsApp alerts and printable briefs (EN + BN)
 ```
+
+**Offline:** the whole app runs without internet (model, data, notices, fonts and map are all local). Force it with `SHOTORKO_OFFLINE=1` (PowerShell: `$env:SHOTORKO_OFFLINE="1"; python run.py`); a yellow "Offline · local mode" badge appears. Details in ARCHITECTURE.md §11.
+
+**Installing with no internet** (e.g. a field office): on any computer with internet and the same OS + Python version, run `scripts\make_offline_bundle.ps1` (or `sh scripts/make_offline_bundle.sh`). It downloads every package into `wheels/` (about 80 MB, not committed). Copy the project folder, `wheels/` included, to the offline computer and run `scripts\install_offline.ps1` (or `sh scripts/install_offline.sh`); pip installs from `wheels/` only and never touches the internet.
+
+**Automatic SMS (optional):** copy `.env.example` to `.env`. With the default `SMS_MODE=dry_run` nothing is sent. For real SMS, run the free *SMS Gateway for Android* app on a phone in local-server mode on the same Wi-Fi/hotspot, then set `SMS_MODE=android` and the gateway address, user and password from the app (ARCHITECTURE.md §10).
 
 ## What you can do in the app
 
@@ -45,6 +52,9 @@ python -m src.train      # retrain all models from the CSV (~2.5 min), rewrites 
 | **Model trust** | Chronological split, MAE vs baselines by horizon, backtest chart with intervals, a **ward × week risk heatmap** for 2024–25 (forecast vs what happened), the **data distribution of each split**, accuracy on train/validation/test (MAE, RMSE, WAPE, R²), missing-data robustness, tier confusion matrix, error by month, interval coverage, alert sensitivity and precision. |
 | **Your data** | Upload a short or incomplete CSV (weekly or daily; only a date plus rainfall or temperature is required). Forecasts come from a robust model trained for missing data, with the typical error measured for that data shape. A sample CSV is included. |
 | **How it works** | Animated "breeding clock" (rain → standing water → mosquitoes → patients) and live system stats: inference time, API calls, LLM tokens (0). |
+| **Operations strip** | Cards on the dashboard for the Phase 2 modules. Dispatch notices opens its own page; resource allocation and hospital overflow open the Operations tab; the spray simulator opens the Crew simulator tab. |
+| **Dispatch centre** | A separate page for ward notices: pick week, horizon, regional stock and crews; wards in priority order with supply-deficit badges; each ward's **SMS**, **WhatsApp** alert and **printable commissioner brief** (EN/BN), with copy, print and **automatic SMS sending** through a phone gateway, including live delivery status. |
+| **Offline mode** | Everything runs on the laptop with no internet; an "Offline · local mode" badge shows when the connection is gone. |
 | **For everyone** | Full **English / বাংলা** switch (including numerals), a 4-step guided tour on first visit, keyboard-accessible controls, CSV field plan download, and reduced-motion support. |
 
 ## Results (test years 2024–2025, unseen during development)
@@ -102,10 +112,19 @@ src/features.py            data loading + ward-level multi-week lag pipeline
 src/risk.py                endemic channel, outbreak probability, risk tiers
 src/train.py               chronological training, baselines, calibration, serialization
 src/predict.py             inference engine, TreeSHAP drivers, what-if scenarios
-src/weather_client.py      optional Open-Meteo client (single request, disk cache, call counter)
-web/                       single-page app: index.html, app.js, styles.css, i18n.js (EN/BN)
+src/weather_client.py      optional Open-Meteo client (single request, disk cache, call counter, offline fallback)
+src/supply.py              per-case supply ratios (saline, kits, beds) learned from the Phase 2 columns
+src/plan_stub.py           ward plans (required/allocated/deficit, crews) until the allocation engine lands
+src/dispatch.py            dispatch notices: SMS, WhatsApp and printable brief templates (EN/BN)
+src/sms_gateway.py         automatic SMS through an Android phone gateway, with a local outbox
+src/offline.py             offline switch, connectivity probe, .env loader
+src/export_samples.py      writes exports/ (sample notices for every High+ ward)
+web/                       dashboard (index.html, app.js) and dispatch centre (dispatch.html, dispatch.js)
 web/vendor/, web/data/     vendored deck.gl and Natural Earth map outlines (see THIRD_PARTY.md)
-data/                      hackathon dataset (CSV export of the provided Google Sheet)
+web/fonts/                 self-hosted fonts, so pages need no internet
+data/                      Phase 2 dataset (Phase 1 columns + saline/kits/beds), contacts template
+docs/PHASE2_PLAN_CONTRACT.md   the ward-plan interface shared by Requirements 1-5
+exports/                   sample SMS, WhatsApp and printable briefs
 models/                    serialized joblib model bundle
 artifacts/                 metrics.json + backtest predictions used by the Model trust page
 tests/                     pipeline, model and API tests
@@ -117,6 +136,7 @@ tests/                     pipeline, model and API tests
 |---|---|
 | **Claude (Anthropic)** | Planning, research, and drafting code, tests and docs. The team reviewed, ran and tested everything. |
 | **Open-Meteo API** | Optional live-weather mode only; not used for training. |
+| **SMS Gateway for Android** (open source) | Optional: sends dispatch SMS from a team phone on the local network. Not an AI service. |
 
 No AI model runs inside the app, and the model is trained only on the organisers' dataset. Bundled open-source assets: deck.gl (MIT) and Natural Earth outlines (public domain).
 

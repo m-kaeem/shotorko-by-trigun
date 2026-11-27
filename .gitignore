@@ -6,3 +6,11 @@ venv/
 .pytest_cache/
 .DS_Store
 .ipynb_checkpoints/
+
+# Phase 2 SMS: local secrets and real phone numbers (never commit)
+.env
+data/ward_contacts.csv
+data/outbox.sqlite
+
+# offline install bundle (made by scripts/make_offline_bundle.*), large: copy it by USB, do not commit
+wheels/

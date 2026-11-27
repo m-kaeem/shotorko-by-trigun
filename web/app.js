@@ -81,6 +81,42 @@
   }
 
   // ------------------------------------------------------------------ static controls
+  // data freshness (Requirement 5): in live mode, say where the weather came from and how old it is
+  function renderFreshness() {
+    const el = $("#wxFresh"); if (!el) return;
+    const w = S.fc && S.fc.weather;
+    if (S.mode !== "live" || !w || !w.fetched_at) { el.hidden = true; return; }
+    const d = new Date(w.fetched_at);
+    const when = `${fmtDate(w.fetched_at.slice(0, 10))} ${loc(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"))}`;
+    const age = w.age_hours < 1 ? t("wxJustNow") : t("wxHoursAgo")(loc(w.age_hours < 10 ? w.age_hours.toFixed(1) : Math.round(w.age_hours)));
+    el.className = "wx-fresh " + (w.source === "network" || w.source === "cache" ? "ok" : "stale");
+    el.textContent = t("wxFresh")({ when, age, src: (t("wxSrc") || {})[w.source] || w.source });
+    el.hidden = false;
+  }
+
+  // Phase 2 operations strip: one card per module, each opening its own page
+  function renderOps(hiCount) {
+    const el = $("#ops"); if (!el) return;
+    const q = new URLSearchParams({ date: S.date, h: S.h, lang: S.lang }).toString();
+    const ic = {
+      alloc: '<path d="M3 7h18M3 12h18M3 17h10"/><circle cx="18" cy="17" r="3"/>',
+      overflow: '<path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6M12 7v4M10 9h4"/>',
+      sim: '<path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3M18 12h3M16.3 7.7l2.1-2.1"/><circle cx="12" cy="14" r="5"/>',
+      dispatch: '<path d="M4 4h16v12H5.2L4 17.5z"/><path d="M8 9h8M8 12h5"/>',
+    };
+    const card = (k, title, sub, href) => `<${href ? `a href="${href}"` : 'div aria-disabled="true"'} class="op${href ? " live" : ""}">
+      <span class="op-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic[k]}</svg></span>
+      <span class="op-txt"><b>${title}</b><small>${sub}</small></span>${href ? '<span class="op-go" aria-hidden="true">→</span>' : ""}</${href ? "a" : "div"}>`;
+    const live = S.mode !== "live";
+    // allocation and overflow live in the Operations tab, the simulator in the Crew simulator tab (teammates' modules)
+    const hasTab = (name) => !!$(`nav.tabs button[data-tab=${name}]`);
+    el.innerHTML = `<h2 class="ops-title" id="opsTitle">${t("opsTitle")}</h2><div class="ops-row">
+      ${card("alloc", t("opsAlloc"), hasTab("ops") ? t("opsAllocSub") : t("comingSoon"), hasTab("ops") ? "#tab=ops" : null)}
+      ${card("overflow", t("opsOverflow"), hasTab("ops") ? t("opsOverflowSub") : t("comingSoon"), hasTab("ops") ? "#tab=ops" : null)}
+      ${card("sim", t("opsSim"), hasTab("sim") ? t("opsSimSub") : t("comingSoon"), hasTab("sim") ? "#tab=sim" : null)}
+      ${card("dispatch", t("opsDispatch"), live ? t("opsReady")(loc(hiCount)) : t("liveNoDispatch"), live ? "dispatch.html?" + q : null)}</div>`;
+    $$('#ops a[href^="#tab="]').forEach((a) => a.onclick = (e) => { e.preventDefault(); switchTab(a.getAttribute("href").slice(5)); });
+  }
   function buildChips() {
     const opts = ["All", ...S.meta.cities.map((c) => c.id)];
     $("#cityChips").innerHTML = opts.map((c) => `<button class="chip" data-city="${c}" aria-pressed="${c === S.city}">${c === "All" ? t("allCities") : cityName(c)}</button>`).join("");
@@ -311,6 +347,7 @@
     buildHorizons();
     // timeline label + badge
     if (S.mode === "replay") updateCalLabel(); else $("#dateLabel").textContent = fmtDate(S.fc.ref_date, true);
+    renderFreshness();
     const b = $("#sampleBadge");
     if (S.mode === "live") { b.className = "badge live"; b.textContent = t("liveBadge"); }
     else if (S.fc.out_of_sample) { b.className = "badge oos"; b.textContent = "● " + t("oos"); }
@@ -330,6 +367,7 @@
       requestAnimationFrame(() => { const m = $(`[data-m="${x}"]`); if (m) m.style.width = (vis.length ? (to / vis.length) * 100 : 0) + "%"; });
     });
     prevKpi = counts;
+    renderOps(counts.Critical + counts.High);
     // top 5
     const ranked = vis.slice().sort((a, b) => (S.view === "act" ? shownValue(b) - shownValue(a) : cur(b).score - cur(a).score));
     $("#top5").innerHTML = ranked.slice(0, 5).map((w, i) => {
@@ -898,6 +936,37 @@
     $("#viewFc").setAttribute("aria-pressed", v === "fc"); $("#viewAct").setAttribute("aria-pressed", v === "act");
     if (!quiet && S.fc) renderForecast(true);
   }
+
+
+  // ------------------------------------------------------------------ offline badge (Phase 2, Requirement 5)
+  async function checkNet() {
+    let offline = !navigator.onLine;
+    try { const h = await fetch("/api/health", { cache: "no-store" }).then((r) => r.json()); offline = offline || !h.internet; checkNet.forced = h.offline_forced; } catch (e) { /* server is local; ignore */ }
+    const L = window.I18N[document.documentElement.lang === "bn" ? "bn" : "en"];
+    const b = document.getElementById("netBadge"); if (!b) return;
+    b.hidden = !offline; b.title = L.netOfflineTip;
+    const sw = document.getElementById("netSwitch");
+    if (sw && checkNet.forced !== undefined) {
+      sw.setAttribute("aria-pressed", checkNet.forced); sw.title = L.simOfflineTip;
+      sw.querySelector("span").textContent = checkNet.forced ? L.simOnline : L.simOffline;
+    }
+  }
+  // the in-app offline switch: go offline (and back) live, e.g. during judging, without unplugging anything
+  async function toggleOffline() {
+    const sw = document.getElementById("netSwitch"); if (!sw) return;
+    sw.disabled = true;
+    try {
+      const r = await fetch("/api/offline", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on: sw.getAttribute("aria-pressed") !== "true" }) }).then((x) => x.json());
+      checkNet.forced = r.offline_forced;
+      await checkNet();
+      document.dispatchEvent(new CustomEvent("sk-net-changed", { detail: r }));
+    } finally { sw.disabled = false; }
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest && e.target.closest("#netSwitch")) toggleOffline(); });
+  document.addEventListener("sk-net-changed", () => { if (S.fc) refresh(); });
+  addEventListener("online", checkNet); addEventListener("offline", checkNet);
+  setInterval(checkNet, 30000); checkNet();
 
   // shared with web/ops.js (Phase 2 operations tab)
   window.SK = { S, api, t, loc, nf, fmtDate, cityName, tierName, toast, HEX, TEXT_ON, debounce, tween,
