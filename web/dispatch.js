@@ -163,6 +163,15 @@
       <span>${statusChip(n.ward_id)}</span></button>`).join("");
     $$(".dx-row").forEach((b) => b.onclick = () => { S.ward = b.dataset.w; $$(".dx-row").forEach((x) => x.setAttribute("aria-selected", x === b)); S.editNum = false; syncUrl(); loadDetail();
       if (matchMedia("(max-width:1100px)").matches) $("#view").scrollIntoView({ behavior: "smooth", block: "start" }); });
+    keepSelectedVisible();
+  }
+  // Scroll only the ward list (not the page) so the chosen ward is in view.
+  function keepSelectedVisible() {
+    const box = $("#wards"), row = box.querySelector('.dx-row[aria-selected="true"]');
+    if (!row) return;
+    const top = row.offsetTop - box.offsetTop, bottom = top + row.offsetHeight;
+    if (top < box.scrollTop) box.scrollTop = top;
+    else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
   }
 
   // ------------------------------------------------------------------ one ward's notice
