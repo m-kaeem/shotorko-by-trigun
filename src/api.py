@@ -441,6 +441,26 @@ async def sms_send(request: Request):
                           "duplicate": r["duplicate"]} for r in results]}
 
 
+@app.get("/api/sms/contacts")
+def sms_contacts():
+    """Ward officer names and masked numbers, plus the fallback (demo) number if one is set."""
+    from . import sms_gateway as G
+    return G.contacts_public()
+
+
+@app.post("/api/sms/contact")
+async def sms_contact_save(request: Request):
+    """Save one ward's officer number: {"ward_id", "name", "phone"}; an empty phone removes it."""
+    from . import sms_gateway as G
+    b = await request.json()
+    try:
+        return G.save_contact(str(b.get("ward_id", "")), str(b.get("name", "")), str(b.get("phone", "")))
+    except KeyError:
+        raise HTTPException(404, "unknown ward")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.get("/api/sms/outbox")
 def sms_outbox(week: str | None = None, limit: int = Query(200, ge=1, le=1000)):
     from . import sms_gateway as G

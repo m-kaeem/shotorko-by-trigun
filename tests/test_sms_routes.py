@@ -65,3 +65,47 @@ def test_no_route_configured_reports_how_to_fix(gw, monkeypatch):
     monkeypatch.setenv("SMS_MODE", "android")
     st = gw.gateway_status()
     assert st["reachable"] is False and "SMS_CLOUD_USER" in st["detail"]
+
+
+# ------------------------------------------------------------------ per-ward numbers
+@pytest.fixture()
+def book(gw, monkeypatch, tmp_path):
+    monkeypatch.setattr(gw, "CONTACTS_PATH", tmp_path / "ward_contacts.csv")
+    monkeypatch.delenv("SMS_OVERRIDE_TO", raising=False)
+    return gw
+
+
+def test_save_contact_normalises_and_masks(book):
+    r = book.save_contact("DSCC_Ward_04", "  Rahima   Khatun ", "01712-345678")
+    assert r == {"ward_id": "DSCC_Ward_04", "name": "Rahima Khatun", "phone": "+8801••••••678", "has_phone": True}
+    assert book.contacts()["DSCC_Ward_04"]["phone"] == "+8801712345678"
+    assert len(book.contacts()) == 60                       # the other wards are kept
+
+
+def test_save_contact_rejects_bad_numbers_and_unknown_wards(book):
+    for bad in ("12345", "01212345678", "+88017123"):
+        with pytest.raises(ValueError):
+            book.save_contact("DSCC_Ward_04", "", bad)
+    with pytest.raises(KeyError):
+        book.save_contact("NOPE_Ward_99", "", "01712345678")
+
+
+def test_ward_number_beats_fallback_number(book, monkeypatch):
+    monkeypatch.setenv("SMS_OVERRIDE_TO", "01900000000")
+    book.save_contact("DSCC_Ward_04", "", "01712345678")
+    assert book.recipient_for("DSCC_Ward_04") == ("+8801712345678", "contact")
+    assert book.recipient_for("DSCC_Ward_05") == ("+8801900000000", "fallback")
+    book.save_contact("DSCC_Ward_04", "", "")              # removing the number falls back again
+    assert book.recipient_for("DSCC_Ward_04")[1] == "fallback"
+    monkeypatch.delenv("SMS_OVERRIDE_TO")
+    assert book.recipient_for("DSCC_Ward_04")[0] == ""
+
+
+def test_contact_api_never_returns_full_numbers(book):
+    from fastapi.testclient import TestClient
+    from src.api import app
+    c = TestClient(app)
+    assert c.post("/api/sms/contact", json={"ward_id": "DSCC_Ward_04", "name": "A", "phone": "01712345678"}).status_code == 200
+    assert c.post("/api/sms/contact", json={"ward_id": "DSCC_Ward_04", "phone": "123"}).status_code == 400
+    w = c.get("/api/sms/contacts").json()["wards"]["DSCC_Ward_04"]
+    assert w["has_phone"] and "345" not in w["phone"]

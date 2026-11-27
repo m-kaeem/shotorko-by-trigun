@@ -111,28 +111,28 @@ def sms(plan: dict, lang: str = "en") -> str:
     tag = "SHOTORKO" if lang == "en" else "সতর্ক"
     head = f"{tag} {N['tier_label'].upper() if lang == 'en' else N['tier_label']} {N['city_code']}-W{_ward_no(plan['ward_id'])}"
     if lang == "en":
-        body = f" wk {N['week_short']}: ~{N['cases']} cases ({N['range']})."
-        sup = " Got/need " + ", ".join(f"{s['short']} {s['allocated']}/{s['required']}" for s in N["supplies"]) + "."
-        short = (" SHORT " + ", ".join(f"{T[lang]['short'][k]} {v}" for k, v in N["deficits"].items()) + ".") if N["deficits"] else ""
-        crews = f" Spray teams {N['spray_teams']}." if N["spray_teams"] else ""
-        tail = f" {N['sms_action']} {N['hotline']}"
+        head = f"SHOTORKO: Ward {_ward_no(plan['ward_id'])} {N['city_code']} is {N['tier_label'].upper()}."
+        body = f" ~{N['cases']} dengue cases expected wk of {N['week_short']} ({N['range']})."
+        act = f" {N['sms_action']}"
+        short = (" Short: " + ", ".join(f"{T[lang]['short'][k]} {v}" for k, v in N["deficits"].items()) + ".") if N["deficits"] else ""
+        crews = f" {N['spray_teams']} spray team{'s' if N['spray_teams'] != 1 else ''} coming." if N["spray_teams"] else ""
+        sup = " You have " + ", ".join(f"{s['short']} {s['allocated']}/{s['required']}" for s in N["supplies"]) + "."
+        tail = f" Hotline {N['hotline']}"
+        parts = [head, body, act, short, crews, sup, tail]
+        parts = [x.replace("–", "-") for x in parts]   # keep the English SMS in the GSM-7 alphabet (160 chars)
+        text = "".join(parts)
+        for drop in (5, 6, 4):     # supplies detail first, then the hotline, then the crew line
+            if len(text) <= 160:
+                break
+            parts[drop] = ""
+            text = "".join(parts)
     else:
         body = f" {N['week_short']}: ~{N['cases']} রোগী।"
         sup = " পেয়েছে/দরকার " + ", ".join(f"{s['short']} {_n(s['allocated'], lang)}/{_n(s['required'], lang)}" for s in N["supplies"]) + "।"
         short = (" ঘাটতি " + ", ".join(f"{T[lang]['short'][k]} {_n(v, lang)}" for k, v in N["deficits"].items()) + "।") if N["deficits"] else ""
         crews = f" স্প্রে দল {_n(N['spray_teams'], lang)}।" if N["spray_teams"] else ""
         tail = f" {N['sms_action']}"
-    # drop the least important parts until the English message fits one segment
-    parts = [head, body, short, crews, sup, tail]
-    text = "".join(parts)
-    if lang == "en":
-        parts = [p.replace("–", "-") for p in parts]   # keep the English SMS in the GSM-7 alphabet (160 chars)
-        text = "".join(parts)
-        for drop in (4, 5):        # supplies detail first, then the action line
-            if len(text) <= 160:
-                break
-            parts[drop] = ""
-            text = "".join(parts)
+        text = "".join([head, body, short, crews, sup, tail])
     return text.strip()
 
 
