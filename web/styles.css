@@ -37,6 +37,9 @@ nav.tabs{display:flex;gap:4px;background:#0E1628;border:1px solid var(--line);bo
 nav.tabs button{border:0;background:transparent;color:var(--ink-2);font-size:14px;padding:9px 16px;border-radius:999px;cursor:pointer;transition:background .2s,color .2s}
 nav.tabs button:hover{background:#16223A;color:var(--ink)}
 nav.tabs button[aria-selected="true"]{background:var(--cyan);color:var(--night);font-weight:600}
+nav.tabs a.tab-link{display:inline-flex;align-items:center;color:var(--ink-2);font-size:14px;padding:9px 16px;border-radius:999px;text-decoration:none;transition:background .2s,color .2s}
+nav.tabs a.tab-link:hover{background:#16223A;color:var(--ink)}
+nav.tabs a.tab-link:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .top-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#0E1628}
 .seg button{border:0;background:transparent;color:var(--muted);padding:8px 13px;font-size:13px;cursor:pointer;transition:background .2s,color .2s}
