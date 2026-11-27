@@ -109,3 +109,27 @@ def test_contact_api_never_returns_full_numbers(book):
     assert c.post("/api/sms/contact", json={"ward_id": "DSCC_Ward_04", "phone": "123"}).status_code == 400
     w = c.get("/api/sms/contacts").json()["wards"]["DSCC_Ward_04"]
     assert w["has_phone"] and "345" not in w["phone"]
+
+
+def test_last_seen_picks_newest_phone_in_utc(gw):
+    devices = [{"lastSeen": "2026-11-27T15:12:04+03:00"}, {"lastSeen": "2026-11-27T09:00:00Z"}, {"lastSeen": "garbage"}]
+    assert gw._last_seen(devices) == "2026-11-27T12:12:04Z"
+    assert gw._last_seen([]) is None and gw._last_seen(None) is None
+
+
+def test_gateway_status_reports_last_seen_and_is_cached(gw, monkeypatch):
+    monkeypatch.setenv("SMS_MODE", "android")
+    monkeypatch.setenv("SMS_CLOUD_USER", "u"); monkeypatch.setenv("SMS_CLOUD_PASS", "p")
+    monkeypatch.setattr(gw, "_STATUS_CACHE", {"at": 0.0, "key": None, "value": None})
+    calls = []
+
+    def fake_check(route):
+        calls.append(route["name"])
+        return True, "cloud relay: 1 phone(s) registered", "2026-11-27T12:12:04Z"
+
+    monkeypatch.setattr(gw, "_check", fake_check)
+    first = gw.gateway_status()
+    assert first["reachable"] and first["route"] == "cloud" and first["last_seen"] == "2026-11-27T12:12:04Z"
+    assert gw.gateway_status() is first and calls == ["cloud"]        # reused, no second network call
+    gw.gateway_status(fresh=True)
+    assert calls == ["cloud", "cloud"]                                 # fresh=True asks again

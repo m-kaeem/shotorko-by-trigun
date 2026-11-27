@@ -26,7 +26,7 @@ import os
 import sqlite3
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from . import config as C
 
@@ -229,43 +229,73 @@ def _session(route: dict):
     return sess
 
 
-def _check(route: dict) -> tuple[bool, str]:
-    """(reachable, detail) for one route. Never raises."""
+def _last_seen(devices) -> str | None:
+    """The most recent time any registered phone checked in with the cloud relay, as UTC ISO text."""
+    best = None
+    for d in devices if isinstance(devices, list) else []:
+        raw = (d or {}).get("lastSeen") or (d or {}).get("updatedAt")
+        try:
+            t = datetime.fromisoformat(str(raw).replace("Z", "+00:00")).astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        best = t if best is None or t > best else best
+    return best.strftime("%Y-%m-%dT%H:%M:%SZ") if best else None
+
+
+def _check(route: dict) -> tuple[bool, str, str | None]:
+    """(reachable, detail, phone's last check-in) for one route. Never raises.
+    Short timeouts: this runs before every send, so a phone that is away must not freeze the page."""
     try:
         sess = _session(route)
         if route["name"] == "cloud":   # the relay lists the phones registered to this account
-            r = sess.get(route["url"] + "/devices", timeout=6)
+            r = sess.get(route["url"] + "/devices", timeout=4)
             if r.status_code in (401, 403):
-                return False, "cloud login rejected: check SMS_CLOUD_USER / SMS_CLOUD_PASS"
+                return False, "cloud login rejected: check SMS_CLOUD_USER / SMS_CLOUD_PASS", None
             if r.status_code == 200:
                 try:
-                    n = len(r.json())
+                    devices = r.json()
                 except ValueError:
-                    n = 0
-                return (n > 0), (f"cloud relay: {n} phone(s) registered" if n else "cloud relay: no phone registered yet")
-            return r.status_code < 500, f"cloud relay answered ({r.status_code})"
-        r = sess.get(route["url"] + "/health", timeout=4)
-        return r.status_code < 500, f"phone answered on local Wi-Fi ({r.status_code})"
+                    devices = []
+                n = len(devices) if isinstance(devices, list) else 0
+                return (n > 0), (f"cloud relay: {n} phone(s) registered" if n else "cloud relay: no phone registered yet"), _last_seen(devices)
+            return r.status_code < 500, f"cloud relay answered ({r.status_code})", None
+        r = sess.get(route["url"] + "/health", timeout=2)
+        return r.status_code < 500, f"phone answered on local Wi-Fi ({r.status_code})", None
     except Exception as exc:   # phone off, different Wi-Fi, no internet...
-        return False, f"{route['name']} not reachable: {type(exc).__name__}"
+        return False, f"{route['name']} not reachable: {type(exc).__name__}", None
 
 
-def gateway_status() -> dict:
-    """Can at least one route reach the phone? Never raises."""
+STATUS_TTL_S = 8.0   # the page, the send button and the worker all ask; one check every few seconds is plenty
+_STATUS_CACHE: dict = {"at": 0.0, "key": None, "value": None}
+
+
+def gateway_status(fresh: bool = False) -> dict:
+    """Can at least one route reach the phone, and when did the phone last check in? Never raises.
+    The answer is reused for a few seconds so repeated calls (page, send, worker) cost nothing."""
     s = settings()
     if s["mode"] != "android":
-        return {"mode": s["mode"], "reachable": None, "detail": "dry run: nothing is sent", "route": None}
+        return {"mode": s["mode"], "reachable": None, "detail": "dry run: nothing is sent", "route": None, "last_seen": None}
+    from .offline import forced_offline
+    key = (s["mode"], s["cloud_user"], s["url"], forced_offline())
+    c = _STATUS_CACHE
+    if not fresh and c["value"] is not None and c["key"] == key and time.monotonic() - c["at"] < STATUS_TTL_S:
+        return c["value"]
     rs = routes()
     if not rs:
-        return {"mode": "android", "reachable": False, "route": None,
-                "detail": "no route set: add SMS_CLOUD_USER/PASS (any network) or SMS_GATEWAY_URL (local Wi-Fi) to .env"}
-    details = []
-    for r in rs:
-        ok, d = _check(r)
-        details.append(d)
-        if ok:
-            return {"mode": "android", "reachable": True, "route": r["name"], "detail": d}
-    return {"mode": "android", "reachable": False, "route": None, "detail": "; ".join(details)}
+        out = {"mode": "android", "reachable": False, "route": None, "last_seen": None,
+               "detail": "no route set: add SMS_CLOUD_USER/PASS (any network) or SMS_GATEWAY_URL (local Wi-Fi) to .env"}
+    else:
+        details, seen, out = [], None, None
+        for r in rs:
+            ok, d, ls = _check(r)
+            details.append(d)
+            seen = seen or ls
+            if ok:
+                out = {"mode": "android", "reachable": True, "route": r["name"], "detail": d, "last_seen": seen}
+                break
+        out = out or {"mode": "android", "reachable": False, "route": None, "detail": "; ".join(details), "last_seen": seen}
+    c.update(at=time.monotonic(), key=key, value=out)
+    return out
 
 
 def _post(route: dict, phone: str, text: str) -> str:
