@@ -93,15 +93,60 @@ def normalise(num: str) -> str:
     return d
 
 
-def recipient_for(ward_id: str) -> tuple[str, str]:
-    """(phone, why) for a ward: the demo override, the ward officer, or ('', reason)."""
+def valid_phone(num: str) -> bool:
+    """A Bangladeshi mobile (+8801[3-9] and 8 digits) or another international number (+ and 8 to 15 digits)."""
+    if num.startswith("+880"):
+        return len(num) == 14 and num[4] == "1" and num[5] in "3456789" and num[1:].isdigit()
+    return num.startswith("+") and num[1:].isdigit() and 8 <= len(num) - 1 <= 15
+
+
+_CONTACTS_LOCK = threading.Lock()
+
+
+def save_contact(ward_id: str, name: str, phone: str) -> dict:
+    """Store (or, with an empty phone, remove) one ward's officer number in data/ward_contacts.csv.
+    The file is created from the example on first save; it holds real numbers and is never committed."""
+    phone = normalise(phone)
+    if phone and not valid_phone(phone):
+        raise ValueError("not a valid mobile number (example: 01712345678 or +8801712345678)")
+    name = " ".join(name.split())[:60]
+    with _CONTACTS_LOCK:
+        src = CONTACTS_PATH if CONTACTS_PATH.exists() else CONTACTS_EXAMPLE
+        rows = []
+        if src.exists():
+            with open(src, newline="", encoding="utf-8-sig") as f:
+                rows = [dict(r) for r in csv.DictReader(f)]
+        hit = next((r for r in rows if r.get("ward_id", "").strip() == ward_id), None)
+        if hit is None:
+            raise KeyError(ward_id)
+        hit["officer_name"], hit["phone"] = name, phone
+        tmp = CONTACTS_PATH.with_suffix(".tmp")
+        with open(tmp, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=["ward_id", "city", "officer_name", "phone"], extrasaction="ignore")
+            w.writeheader()
+            w.writerows(rows)
+        tmp.replace(CONTACTS_PATH)
+    return {"ward_id": ward_id, "name": name, "phone": _mask(phone) if phone else "", "has_phone": bool(phone)}
+
+
+def contacts_public() -> dict:
+    """What the dispatch page may show: names and masked numbers only."""
     s = settings()
-    if s["override_to"]:
-        return normalise(s["override_to"]), "override"
+    fb = normalise(s["override_to"]) if s["override_to"] else ""
+    return {"fallback": _mask(fb) if fb else None,
+            "wards": {k: {"name": v["name"], "phone": _mask(v["phone"]) if v["phone"] else "", "has_phone": bool(v["phone"])}
+                      for k, v in contacts().items()}}
+
+
+def recipient_for(ward_id: str) -> tuple[str, str]:
+    """(phone, why) for a ward: its own officer's number, else the fallback (demo) number, else ('', reason)."""
     c = contacts().get(ward_id)
     if c and c["phone"]:
         return c["phone"], "contact"
-    return "", "no phone number for this ward in data/ward_contacts.csv"
+    s = settings()
+    if s["override_to"]:
+        return normalise(s["override_to"]), "fallback"
+    return "", "no phone number saved for this ward"
 
 
 # ------------------------------------------------------------------ outbox

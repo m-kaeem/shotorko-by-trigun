@@ -13,8 +13,8 @@
   const url = new URLSearchParams(location.search);
   const S = {
     lang: url.get("lang") === "bn" ? "bn" : "en", date: url.get("date") || "2025-07-07", h: +(url.get("h") || 3),
-    stock: +(url.get("stock") || 100), crews: +(url.get("crews") || 20), tier: url.get("tier") || "high",
-    ward: url.get("ward"), ch: "sms", list: [], detail: null, seqL: 0, seqD: 0, dates: [], gw: null, box: {}, poll: null,
+    stock: +(url.get("stock") || 100), crews: +(url.get("crews") || 20), tier: ["all", "high", "crit"].includes(url.get("tier")) ? url.get("tier") : "high",
+    ward: url.get("ward"), ch: "sms", filt: "all", book: { fallback: null, wards: {} }, editNum: false, list: [], detail: null, seqL: 0, seqD: 0, dates: [], gw: null, box: {}, poll: null,
   };
   try { if (!url.get("lang")) { const l = localStorage.getItem("sk-lang"); if (l === "bn" || l === "en") S.lang = l; } } catch (e) { /* ignore */ }
 
@@ -45,18 +45,20 @@
   }
 
   // ------------------------------------------------------------------ controls
+  const segBtns = (el, items, cur, on) => {
+    el.innerHTML = items.map(([k, l]) => `<button data-k="${k}" aria-pressed="${String(k) === String(cur)}">${l}</button>`).join("");
+    $$("button", el).forEach((b) => b.onclick = () => on(b.dataset.k));
+  };
   function buildControls() {
     $("#fWeek").innerHTML = S.dates.slice().reverse().map((d) => `<option value="${d}" ${d === S.date ? "selected" : ""}>${fmtDate(d)}</option>`).join("");
-    $("#fH").innerHTML = [2, 3, 4].map((h) => `<button data-h="${h}" aria-pressed="${h === S.h}">${loc(h)} ${t("weeks")}</button>`).join("");
+    segBtns($("#fH"), [2, 3, 4].map((h) => [h, `${loc(h)} ${t("weeks")}`]), S.h, (k) => { S.h = +k; buildControls(); loadList(); });
+    segBtns($("#fTier"), [["crit", t("dxCrit")], ["high", t("dxHigh")], ["all", t("dxAll")]], S.tier, (k) => { S.tier = k; buildControls(); loadList(); });
     $("#fStock").innerHTML = [100, 90, 80, 70, 60, 50, 40, 30].map((v) => `<option value="${v}" ${v === S.stock ? "selected" : ""}>${loc(v)}%</option>`).join("");
     $("#fCrews").innerHTML = [5, 10, 20, 30, 40, 60].map((v) => `<option value="${v}" ${v === S.crews ? "selected" : ""}>${loc(v)}</option>`).join("");
-    $("#fTier").innerHTML = [["high", t("dpHighPlus")], ["crit", t("dpCritOnly")], ["all", t("dpAll")]]
-      .map(([k, l]) => `<option value="${k}" ${k === S.tier ? "selected" : ""}>${l}</option>`).join("");
+    $("#assumeNow").textContent = t("dxAssumeNow")({ stock: loc(S.stock), crews: loc(S.crews) });
     $("#fWeek").onchange = (e) => { S.date = e.target.value; loadList(); };
-    $$("#fH button").forEach((b) => b.onclick = () => { S.h = +b.dataset.h; buildControls(); loadList(); });
-    $("#fStock").onchange = (e) => { S.stock = +e.target.value; loadList(); };
-    $("#fCrews").onchange = (e) => { S.crews = +e.target.value; loadList(); };
-    $("#fTier").onchange = (e) => { S.tier = e.target.value; loadList(); };
+    $("#fStock").onchange = (e) => { S.stock = +e.target.value; buildControls(); loadList(); };
+    $("#fCrews").onchange = (e) => { S.crews = +e.target.value; buildControls(); loadList(); };
   }
   function applyLang() {
     document.documentElement.lang = S.lang;
@@ -77,20 +79,90 @@
       if (my !== S.seqL) return;
       S.list = d.notices;
       if (!S.list.some((n) => n.ward_id === S.ward)) S.ward = S.list.length ? S.list[0].ward_id : null;
-      renderList(); loadDetail(); loadOutbox();
+      S.box = {}; renderList(); loadDetail(); loadOutbox();
     } catch (e) { if (my === S.seqL) { $("#wards").innerHTML = `<p class="dp-empty">${esc(e.message || t("error"))}</p>`; } }
   }
   function wardName(id) { const [, , n] = id.split("_"); return `${t("ward")} ${loc(n)}`; }
+  const isSent = (wid) => { const m = S.box[wid]; return !!m && ["queued", "sending", "sent", "delivered", "dry-run"].includes(m.status); };
+  function statusChip(wid) {
+    const m = S.box[wid];
+    if (!m) return canReach(wid) ? `<span class="dx-st none">${t("dxNotSent")}</span>` : `<span class="dx-st nonum">${t("dxNoNum")}</span>`;
+    const ok = ["sent", "delivered"].includes(m.status);
+    return `<span class="dx-st ${m.status}">${ok ? ICON_OK : ""}${t("smsSt")[m.status] || m.status}</span>`;
+  }
+  const ICON_OK = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+  const ICON_WARN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
+  const PHONE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>';
+  const contact = (wid) => S.book.wards[wid] || { name: "", phone: "", has_phone: false };
+  const canReach = (wid) => contact(wid).has_phone || !!S.book.fallback;
+  async function loadContacts() {
+    try { S.book = await api("/api/sms/contacts"); } catch (e) { /* keep the last copy */ }
+  }
+  function recipientHtml(wid) {
+    const c = contact(wid);
+    if (S.editNum) {
+      return `<form class="dx-num-form" id="numForm" novalidate>
+        <label><span>${t("dxName")}</span><input id="numName" autocomplete="off" maxlength="60" value="${esc(c.name)}"></label>
+        <label><span>${t("dxPhone")}</span><input id="numPhone" inputmode="tel" autocomplete="off" placeholder="${t("dxPhonePh")}" required></label>
+        <p class="dx-num-help">${t("dxNumHelp")}</p>
+        <p class="dx-num-err" id="numErr" role="alert" hidden></p>
+        <div class="dx-num-btns"><button class="btn disp-primary" type="submit">${t("dxSave")}</button>
+          <button class="btn" type="button" id="numCancel">${t("dxCancel")}</button>
+          ${c.has_phone ? `<button class="btn dx-num-rm" type="button" id="numRemove">${t("dxRemoveNum")}</button>` : ""}</div>
+      </form>`;
+    }
+    const who = c.has_phone
+      ? `<span class="dx-rec-ok">${PHONE_ICON}<b>${esc(c.name || t("dxOfficer"))}</b> ${esc(c.phone)}</span>`
+      : `<span class="dx-rec-none">${PHONE_ICON}${t("dxRecNone")} ${S.book.fallback ? t("dxRecFallback")(esc(S.book.fallback)) : t("dxRecBlocked")}</span>`;
+    return `<div class="dx-rec">${who}<button class="btn dx-rec-btn" type="button" id="numEdit">${c.has_phone ? t("dxChangeNum") : t("dxAddNum")}</button></div>`;
+  }
+  function wireRecipient(wid) {
+    const ed = $("#numEdit"); if (ed) ed.onclick = () => { S.editNum = true; renderDetail(); const i = $("#numPhone"); if (i) i.focus(); };
+    const cancel = $("#numCancel"); if (cancel) cancel.onclick = () => { S.editNum = false; renderDetail(); };
+    const save = async (phone) => {
+      const err = $("#numErr");
+      try {
+        const r = await fetch("/api/sms/contact", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ward_id: wid, name: $("#numName") ? $("#numName").value : "", phone }) });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.detail || r.statusText);
+        S.editNum = false; await loadContacts(); renderList(); renderDetail(); toast(phone ? t("dxSaved") : t("dxRemoved"));
+      } catch (e) { if (err) { err.hidden = false; err.textContent = t("dxBadNum"); } }
+    };
+    const form = $("#numForm");
+    if (form) form.onsubmit = (e) => { e.preventDefault(); const v = $("#numPhone").value.trim(); if (!v) { $("#numErr").hidden = false; $("#numErr").textContent = t("dxBadNum"); return; } save(v); };
+    const rm = $("#numRemove"); if (rm) rm.onclick = () => save("");
+  }
+  function renderFilter() {
+    const sent = S.list.filter((x) => isSent(x.ward_id)).length, n = S.list.length;
+    const cnt = { all: n, todo: n - sent, done: sent };
+    segBtns($("#fList"), Object.entries(t("dxFilt")).map(([k, l]) => [k, `${l} <small>${loc(cnt[k])}</small>`]), S.filt, (k) => { S.filt = k; renderList(); });
+  }
+  function renderProgress() {
+    const n = S.list.length, sent = S.list.filter((x) => isSent(x.ward_id)).length, left = n - sent;
+    $("#roundHead").textContent = t("dxRoundTitle")({ week: fmtDate(targetWeek()), n: loc(n) });
+    $("#progSent").textContent = t("dxSentN")(loc(sent), loc(n));
+    $("#progLeft").textContent = left ? t("dxLeft")(loc(left)) : "";
+    const own = S.list.filter((x) => contact(x.ward_id).has_phone).length;
+    $("#numCount").innerHTML = PHONE_ICON + t("dxNumCount")(loc(own), loc(n)) + (own < n ? " " + (S.book.fallback ? t("dxNumRestFb") : t("dxNumRestNone")) : "");
+    $("#progBar").style.width = n ? (100 * sent / n).toFixed(1) + "%" : "0";
+    $("#sendRoundTxt").textContent = left ? t("dxSendRest")(loc(left)) : t("dxAllSent");
+    $("#sendRound").disabled = !left;
+    $("#copyAll").disabled = !n;
+  }
   function renderList() {
-    $("#listHead").textContent = t("dpWards")(loc(S.list.length));
+    renderProgress(); renderFilter();
     if (!S.list.length) { $("#wards").innerHTML = `<p class="dp-empty">${t("dpNone")}</p>`; $("#view").innerHTML = ""; return; }
-    const lvl = { none: "✓", partial: "!", critical: "!!" };
-    $("#wards").innerHTML = S.list.map((n) => `<button class="dp-ward" role="option" data-w="${n.ward_id}" aria-selected="${n.ward_id === S.ward}">
+    const rows = S.list.filter((n) => S.filt === "all" || (S.filt === "done") === isSent(n.ward_id));
+    if (!rows.length) { $("#wards").innerHTML = `<p class="dp-empty">${t("dxEmptyFilt")}</p>`; return; }
+    $("#wards").innerHTML = rows.map((n) => `<button class="dx-row" role="option" data-w="${n.ward_id}" aria-selected="${n.ward_id === S.ward}" style="--c:${HEX[n.tier]}">
       <span class="rk">${loc(n.priority_rank)}</span>
-      <span><b>${wardName(n.ward_id)} · ${esc(t("cities")[n.city] || n.city)}</b>
-        <small><span class="dot" style="background:${HEX[n.tier]}"></span>${t("tiers")[n.tier]}</small></span>
-      <span class="tags"><span class="def ${n.deficit_level}" title="${n.deficit_level}">${n.deficit_level === "none" ? lvl.none : (S.lang === "bn" ? "ঘাটতি" : "deficit")}</span>${smsTag(n.ward_id)}</span></button>`).join("");
-    $$(".dp-ward").forEach((b) => b.onclick = () => { S.ward = b.dataset.w; $$(".dp-ward").forEach((x) => x.setAttribute("aria-selected", x === b)); syncUrl(); loadDetail(); });
+      <span class="who"><b>${wardName(n.ward_id)}</b><small>${esc(t("cities")[n.city] || n.city)}</small>${contact(n.ward_id).has_phone ? `<i class="dx-has-num" title="${t("dxHasNum")}">${PHONE_ICON}</i>` : ""}</span>
+      <span class="dx-tier"><i></i>${t("tiers")[n.tier]}</span>
+      <span class="dx-sup-st ${n.deficit_level !== "none" ? "short" : ""}">${n.deficit_level !== "none" ? ICON_WARN + t("dxShortW") : t("dxEnough")}</span>
+      <span>${statusChip(n.ward_id)}</span></button>`).join("");
+    $$(".dx-row").forEach((b) => b.onclick = () => { S.ward = b.dataset.w; $$(".dx-row").forEach((x) => x.setAttribute("aria-selected", x === b)); S.editNum = false; syncUrl(); loadDetail();
+      if (matchMedia("(max-width:1100px)").matches) $("#view").scrollIntoView({ behavior: "smooth", block: "start" }); });
   }
 
   // ------------------------------------------------------------------ one ward's notice
@@ -105,28 +177,41 @@
     } catch (e) { if (my === S.seqD) $("#view").innerHTML = `<p class="dp-empty">${esc(e.message || t("error"))}</p>`; }
   }
   function renderDetail() {
-    const d = S.detail, N = d.notice, ch = S.ch;
-    const sup = N.supplies.map((s) => `<div class="${s.deficit ? "short" : ""}"><small>${esc(s.label)}</small>
-      <b>${loc(s.allocated)}<span> / ${loc(s.required)}</span></b>${s.deficit ? `<em>${S.lang === "bn" ? "ঘাটতি" : "short"} ${loc(s.deficit)}</em>` : ""}</div>`).join("");
+    const d = S.detail, N = d.notice, ch = S.ch, hx = HEX[N.tier];
+    const sup = N.supplies.map((s) => {
+      const pct = s.required ? Math.min(100, 100 * s.allocated / s.required) : 100;
+      return `<div class="dx-sup ${s.deficit ? "short" : ""}"><small>${esc(s.label)}</small>
+        <b>${loc(s.allocated)}<span> ${t("dxOf")} ${loc(s.required)}</span></b>
+        <div class="dx-mini"><i style="width:${pct.toFixed(0)}%"></i></div>
+        <em>${s.deficit ? t("dxShortBy")(loc(s.deficit)) : t("dxEnough")}</em></div>`;
+    }).join("") + `<div class="dx-sup crew"><small>${t("crewsLbl")}</small><b>${loc(N.spray_teams)}</b><em class="muted">${t("dxCrewsSub")}</em></div>`;
     let body;
-    if (ch === "sms") body = `<div class="disp-msg sms">${esc(d.sms.text)}</div><div class="disp-meta">${t("segs")({ chars: loc(d.sms.chars), segs: loc(d.sms.segments) })}</div>`;
+    if (ch === "sms") body = `<div class="dx-phone"><div class="disp-msg sms">${esc(d.sms.text)}</div>
+      <div class="disp-meta">${t("segs")({ chars: loc(d.sms.chars), segs: loc(d.sms.segments) })}</div></div>`;
     else if (ch === "whatsapp") body = `<div class="disp-msg">${esc(d.whatsapp).replace(/\*([^*\n]+)\*/g, "<b>$1</b>")}</div>`;
     else body = `<div class="disp-frame"><iframe title="${t("chBrief")}" src="${d.brief_url}"></iframe></div>`;
     $("#view").innerHTML = `
-      <div class="dp-view-head"><div><h2>${esc(N.city)} · ${esc(N.ward)}</h2>
-        <div class="sub">${t("tiers")[N.tier]} · ~${N.cases} (${N.range}) · ${N.week} · ${t("dpRank")} #${loc(N.priority_rank)} · ${t("crewsLbl")}: ${loc(N.spray_teams)}</div></div>
-        <span class="badge" style="border-color:${HEX[N.tier]};color:${HEX[N.tier]}">● ${t("tiers")[N.tier]}</span></div>
-      <div class="dp-supplies">${sup}</div>
-      <div class="seg disp-tabs" role="tablist" aria-label="${t("dispTitle")}">${[["sms", t("chSms")], ["whatsapp", t("chWa")], ["brief", t("chBrief")]].map(([k, l]) =>
+      <div class="dx-vhead" style="--c:${hx}">
+        <h2>${esc(N.ward)} <span>${esc(N.city)}</span></h2>
+        <span class="dx-badge">${t("tiers")[N.tier]}</span>
+      </div>
+      <p class="dx-line">${t("dxLine")({ cases: `<b>~${loc(N.cases)}</b>`, week: esc(N.week), range: loc(N.range) })} <span class="muted">${t("dxPrio")(loc(N.priority_rank), loc(S.list.length))}</span></p>
+      <h3 class="dx-h3">${t("dxMsgTitle")}</h3>
+      <div class="seg disp-tabs" role="tablist">${[["sms", t("chSms")], ["whatsapp", t("chWa")], ["brief", t("chBrief")]].map(([k, l]) =>
         `<button role="tab" data-ch="${k}" aria-selected="${k === ch}" aria-pressed="${k === ch}">${l}</button>`).join("")}</div>
+      <p class="dx-hint">${t("dxChHint")[ch]}</p>
+      ${ch === "sms" ? `<div class="dx-recip"><h4>${t("dxRecTitle")}</h4>${recipientHtml(N.ward_id)}</div>` : ""}
       ${body}
       <div class="disp-actions">${ch === "brief"
         ? `<a class="btn disp-primary" href="${d.brief_url}" target="_blank" rel="noopener">${t("openBrief")}</a>`
         : ch === "sms"
-          ? `<button class="btn disp-primary" id="sendOne">${t("smsSend")}</button><button class="btn" id="copyOne">${t("copy")}</button>`
+          ? `<button class="btn disp-primary" id="sendOne" ${canReach(N.ward_id) ? "" : "disabled"}>${isSent(N.ward_id) ? t("dxResend") : t("smsSend")}</button><button class="btn" id="copyOne">${t("copy")}</button>`
           : `<button class="btn disp-primary" id="copyOne">${t("copy")}</button>`}</div>
-      ${ch === "sms" ? smsLog(N.ward_id) : ""}`;
-    $$(".disp-tabs button").forEach((b) => b.onclick = () => { S.ch = b.dataset.ch; renderDetail(); });
+      ${ch === "sms" ? smsLog(N.ward_id) : ""}
+      <h3 class="dx-h3">${t("dxSupTitle")}</h3>
+      <div class="dx-sups">${sup}</div>`;
+    $$(".disp-tabs button").forEach((b) => b.onclick = () => { S.ch = b.dataset.ch; S.editNum = false; renderDetail(); });
+    if (ch === "sms") wireRecipient(N.ward_id);
     const c1 = $("#copyOne");
     const s1 = $("#sendOne");
     if (s1) s1.onclick = () => sendSms({ ward_id: N.ward_id }, 1, s1);
@@ -136,14 +221,11 @@
 
   // ------------------------------------------------------------------ automatic SMS (Android phone gateway)
   const targetWeek = () => { const d = new Date(S.date + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 7 * S.h); return d.toISOString().slice(0, 10); };
-  function smsTag(wid) {
-    const m = S.box[wid]; if (!m) return "";
-    return `<span class="sms-st ${m.status}" title="${t("smsLast")}: ${esc(m.updated || "")}">SMS · ${t("smsSt")[m.status] || m.status}</span>`;
-  }
   function smsLog(wid) {
-    const m = S.box[wid]; if (!m) return "";
+    const m = S.box[wid];
+    if (!m) return `<div class="sms-log">${t("dxNever")}</div>`;
     const when = (m.updated || "").replace("T", " ").slice(0, 16);
-    return `<div class="sms-log">${t("smsLast")}: <b>${t("smsSt")[m.status] || m.status}</b> · ${esc(m.phone || "")} · ${loc(when)}${m.route ? ` · ${(t("smsRoute") || {})[m.route] || m.route}` : ""}${m.error ? ` · ${esc(m.error)}` : ""}</div>`;
+    return `<div class="sms-log">${statusChip(wid)} ${esc(m.phone || "")} · ${loc(when)}${m.route ? ` · ${(t("smsRoute") || {})[m.route] || m.route}` : ""}${m.error ? ` · ${esc(m.error)}` : ""}</div>`;
   }
   async function loadGateway() {
     try {
@@ -151,7 +233,7 @@
       const el = $("#gw"), g = S.gw;
       const cls = g.mode !== "android" ? "dry" : g.reachable ? "ok" : "down";
       el.className = "gw " + cls;
-      $("span", el).textContent = cls === "dry" ? t("gwDry") : cls === "ok" ? t("gwOk") : t("gwDown");
+      $("span", el).textContent = t("dxGw")[cls];
       if (cls === "ok" && g.route) $("span", el).textContent += " · " + ((t("smsRoute") || {})[g.route] || g.route);
       el.title = g.detail || "";
     } catch (e) { /* status is informative only */ }
@@ -163,16 +245,18 @@
       const latest = {};
       d.messages.forEach((m) => { if (!latest[m.ward_id]) latest[m.ward_id] = m; });   // newest first
       S.box = latest;
-      $$(".dp-ward").forEach((b) => { const tags = $(".tags", b); if (tags) { $$(".sms-st", tags).forEach((x) => x.remove()); tags.insertAdjacentHTML("beforeend", smsTag(b.dataset.w)); } });
-      if (S.detail && S.ch === "sms") { const old = $(".sms-log"); const html = smsLog(S.detail.notice.ward_id); if (old) old.outerHTML = html || "<span></span>"; else if (html) $("#view").insertAdjacentHTML("beforeend", html); }
+      renderList();
+      if (S.detail && S.ch === "sms") renderDetail();
       if (d.messages.some((m) => ["queued", "sending"].includes(m.status))) S.poll = setTimeout(loadOutbox, 3000);
     } catch (e) { S.poll = setTimeout(loadOutbox, 8000); }
   }
   async function sendSms(target, n, btn) {
     await loadGateway();
     const g = S.gw || { mode: "dry_run" };
-    const to = g.override_to ? t("smsToOverride")(g.override_to) : t("smsToOfficers");
-    if (!confirm(t("smsConfirm")({ n: loc(n), to, dry: g.mode !== "android" }))) return;
+    await loadContacts();
+    const ids = target.ward_id ? [target.ward_id] : S.list.filter((x) => !isSent(x.ward_id)).map((x) => x.ward_id);
+    const own = ids.filter((w) => contact(w).has_phone).length, fb = S.book.fallback ? ids.length - own : 0, none = ids.length - own - fb;
+    if (!confirm(t("dxConfirm")({ n: loc(ids.length), own: loc(own), fb: loc(fb), fbNum: S.book.fallback || "", none: loc(none), dry: g.mode !== "android" }))) return;
     if (btn) btn.disabled = true;
     try {
       const r = await fetch("/api/sms/send", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -228,8 +312,9 @@
       const ok = await copy(S.list.map((n) => n.sms).join("\n\n"));
       if (ok) toast(t("copiedN")(loc(S.list.length)));
     };
-    $("#sendRound").onclick = () => sendSms({ round: true, min_tier: TIER_MIN[S.tier] }, S.list.length, $("#sendRound"));
+    $("#sendRound").onclick = () => sendSms({ round: true, min_tier: TIER_MIN[S.tier] }, S.list.filter((x) => !isSent(x.ward_id)).length, $("#sendRound"));
     loadGateway(); setInterval(loadGateway, 20000);
+    await loadContacts();
     loadList();
   }
   boot();

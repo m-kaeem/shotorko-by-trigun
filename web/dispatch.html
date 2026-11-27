@@ -37,28 +37,51 @@
   </div>
 </header>
 
-<main>
-  <div class="hero">
-    <div><h1 data-i="dpTitle"></h1><p data-i="dpSub"></p></div>
-  </div>
+<main class="dx">
+  <header class="dx-head">
+    <h1 data-i="dxTitle"></h1>
+    <p data-i="dxSub"></p>
+  </header>
 
-  <section class="dp-controls card" aria-label="Dispatch settings">
-    <label><span data-i="dpWeek"></span><select id="fWeek"></select></label>
-    <div class="dp-field"><span data-i="dpHorizon"></span><div class="seg" id="fH" role="group" aria-label="Horizon"></div></div>
-    <label><span data-i="stockLbl"></span><select id="fStock"></select></label>
-    <label><span data-i="crewsLbl"></span><select id="fCrews"></select></label>
-    <label><span data-i="dpMinTier"></span><select id="fTier"></select></label>
-    <span class="gw" id="gw" role="status"><i></i><span></span></span>
+  <section class="dx-round card" aria-labelledby="roundHead">
+    <div class="dx-round-main">
+      <h2 class="dx-round-title" id="roundHead"></h2>
+      <div class="dx-round-ctl">
+        <label class="dx-f"><span data-i="dxBasedOn"></span><select id="fWeek"></select></label>
+        <div class="dx-f"><span data-i="dxAhead"></span><div class="seg" id="fH" role="group"></div></div>
+        <div class="dx-f"><span data-i="dxWhich"></span><div class="seg" id="fTier" role="group"></div></div>
+      </div>
+      <details class="dx-assume">
+        <summary><span data-i="dxAssume"></span> <small id="assumeNow"></small></summary>
+        <div class="dx-assume-body">
+          <p data-i="dxAssumeHint"></p>
+          <label class="dx-f"><span data-i="stockLbl"></span><select id="fStock"></select></label>
+          <label class="dx-f"><span data-i="crewsLbl"></span><select id="fCrews"></select></label>
+        </div>
+      </details>
+    </div>
+    <div class="dx-round-send" aria-live="polite">
+      <div class="dx-prog-txt"><b id="progSent"></b><span id="progLeft"></span></div>
+      <div class="dx-bar" aria-hidden="true"><i id="progBar"></i></div>
+      <div class="dx-prog-btns">
+        <button class="btn disp-primary" id="sendRound"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg><span id="sendRoundTxt"></span></button>
+        <button class="btn" id="copyAll"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i="dxCopyAll"></span></button>
+      </div>
+      <div class="dx-round-foot"><span class="gw" id="gw" role="status"><i></i><span></span></span>
+        <span class="dx-numcount" id="numCount"></span></div>
+    </div>
   </section>
 
-  <div class="dp-grid">
-    <section class="dp-list card" aria-labelledby="listHead">
-      <div class="dp-list-head"><h2 class="sec-title" id="listHead"></h2>
-        <span class="dp-head-btns"><button class="btn disp-primary" id="sendRound"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg><span data-i="smsSendRound"></span></button>
-        <button class="btn" id="copyAll"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i="copyAllSms"></span></button></span></div>
-      <div class="dp-wards" id="wards" role="listbox" aria-label="Wards"></div>
+  <div class="dx-work">
+    <section class="dx-wards card" aria-labelledby="listHead">
+      <div class="dx-wards-head">
+        <h2 class="dx-h" id="listHead" data-i="dxWardsH"></h2>
+        <div class="seg dx-filt" id="fList" role="group"></div>
+      </div>
+      <div class="dx-cols" aria-hidden="true"><span>#</span><span data-i="dxColWard"></span><span data-i="dxColRisk"></span><span data-i="dxColSup"></span><span data-i="dxColSms"></span></div>
+      <div class="dx-rows" id="wards" role="listbox" aria-label="Wards"></div>
     </section>
-    <section class="dp-view card" id="view" aria-live="polite"></section>
+    <section class="dx-view card" id="view" aria-live="polite"></section>
   </div>
   <p class="disp-note dp-foot" data-i="stubNote" id="stubNote" hidden></p>
 </main>
