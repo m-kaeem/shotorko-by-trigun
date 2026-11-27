@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispatch centre · Shotorko by TRIGUN</title>
+<meta name="description" content="Ward dispatch notices for SMS, WhatsApp and printable commissioner briefs.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%23070B16'/%3E%3Ccircle cx='24' cy='24' r='17' fill='none' stroke='%2322D3EE' stroke-width='2' opacity='.6'/%3E%3Cpath d='M24 12C24 12 16 21 16 26.5A8 8 0 0 0 32 26.5C32 21 24 12 24 12Z' fill='%2322D3EE'/%3E%3Ccircle cx='36' cy='13' r='3' fill='%23F43F5E'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="dispatch.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <a class="logo" href="/" aria-label="Shotorko dashboard">
+      <svg width="42" height="42" viewBox="0 0 48 48" aria-hidden="true">
+        <circle cx="24" cy="24" r="21" fill="none" stroke="#22D3EE" stroke-opacity=".35" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="13.5" fill="none" stroke="#22D3EE" stroke-opacity=".55" stroke-width="1.5"/>
+        <path d="M24 14.5 C24 14.5 17.5 21.8 17.5 26.2 A6.5 6.5 0 0 0 30.5 26.2 C30.5 21.8 24 14.5 24 14.5 Z" fill="#22D3EE"/>
+        <circle cx="35.5" cy="14.5" r="2.4" fill="#F43F5E"/>
+      </svg>
+      <span>
+        <span style="display:flex;align-items:baseline;gap:8px"><span class="name">Shotorko</span><span class="bnname" lang="bn">সতর্ক</span></span>
+        <span class="tag" data-i="dpTitle"></span>
+      </span>
+    </a>
+  </div>
+  <div class="top-right">
+    <span class="net-badge" id="netBadge" role="status" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20M8.5 16.5a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.1-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 11 4.6M12 20h.01"/></svg><span data-i="netOffline"></span></span>
+        <a class="btn dp-back" id="backLink" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span data-i="back"></span></a>
+    <div class="seg" role="group" aria-label="Language">
+      <button id="langEn" aria-pressed="true">EN</button>
+      <button id="langBn" aria-pressed="false" lang="bn">বাংলা</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div><h1 data-i="dpTitle"></h1><p data-i="dpSub"></p></div>
+  </div>
+
+  <section class="dp-controls card" aria-label="Dispatch settings">
+    <label><span data-i="dpWeek"></span><select id="fWeek"></select></label>
+    <div class="dp-field"><span data-i="dpHorizon"></span><div class="seg" id="fH" role="group" aria-label="Horizon"></div></div>
+    <label><span data-i="stockLbl"></span><select id="fStock"></select></label>
+    <label><span data-i="crewsLbl"></span><select id="fCrews"></select></label>
+    <label><span data-i="dpMinTier"></span><select id="fTier"></select></label>
+    <span class="gw" id="gw" role="status"><i></i><span></span></span>
+  </section>
+
+  <div class="dp-grid">
+    <section class="dp-list card" aria-labelledby="listHead">
+      <div class="dp-list-head"><h2 class="sec-title" id="listHead"></h2>
+        <span class="dp-head-btns"><button class="btn disp-primary" id="sendRound"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg><span data-i="smsSendRound"></span></button>
+        <button class="btn" id="copyAll"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span data-i="copyAllSms"></span></button></span></div>
+      <div class="dp-wards" id="wards" role="listbox" aria-label="Wards"></div>
+    </section>
+    <section class="dp-view card" id="view" aria-live="polite"></section>
+  </div>
+  <p class="disp-note dp-foot" data-i="stubNote" id="stubNote" hidden></p>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="i18n.js"></script>
+<script src="dispatch.js"></script>
+</body>
+</html>

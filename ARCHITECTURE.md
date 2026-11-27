@@ -90,13 +90,49 @@ On the test years (where only 4.5% of ward-weeks are observed High+), the system
 * **Serialized models:** one `joblib` bundle, loaded once when the server starts. Inference is CPU-only (about 50–70 ms for all wards and horizons). `/api/forecast` results are memoised with an LRU cache keyed on (week, scenario, mode), so replaying a week costs nothing. What-if scenarios rebuild features only for the 65-week window they need. The client debounces slider input (≈0.3 s) and sends one request per change.
 * **Explanations without a paid API:** per-forecast driver attributions use LightGBM's built-in TreeSHAP (`pred_contrib=True`). The narrative text comes from a deterministic template. **Runtime LLM tokens: 0.** If an LLM summary is added later, the plan is: one cached summary per ward-week (keyed by forecast hash), a `max_tokens` cap of about 150, generated only on demand, with the template as fallback.
 * **Weather API (optional live mode):** Open-Meteo is free and needs no key. **One request** covers all 5 cities (comma-separated coordinates), with a disk cache TTL of 6 h, so at most 4 calls per day. It has a 10 s timeout and one retry, falls back to a stale cache or to replay mode if the API fails, and the UI shows the call and cache-hit counters.
-* **Training is not part of app start-up.** The trained bundle, deck.gl and the map outlines ship in the repo, so a fresh clone installs and launches in about a minute. The only optional network call at runtime is the cached Open-Meteo request (plus Google Fonts, with a system-font fallback).
+* **Training is not part of app start-up.** The trained bundle, deck.gl, the map outlines and the fonts ship in the repo, so a fresh clone installs and launches in about a minute. The only optional internet call at runtime is the cached Open-Meteo request (section 9).
 
 ## 7. Hospital readiness
 
 For High or Critical wards, the panel lists the city's dengue-treating public hospitals with the city's forecast load against normal and the DGHS line 16263. No open real-time bed feed exists, so pressure is forecast-based (details in docs/MODEL_REPORT.md).
 
-## 8. Limitations and next steps
+## 8. Phase 2: dispatch notices and SMS (Requirement 4)
+
+```mermaid
+flowchart LR
+    D[Phase 2 dataset<br/>+ saline / kits / beds columns] --> R[src/supply.py<br/>per-case ratios per ward]
+    F[Forecast engine] --> P[Ward plans<br/>src/plan.py, or src/plan_stub.py until Req 1 lands]
+    R --> P
+    P --> N[src/dispatch.py<br/>fixed EN/BN templates]
+    N --> S[SMS ≤160 chars] & W[WhatsApp] & B[Printable HTML brief]
+    S --> O[(Outbox<br/>data/outbox.sqlite)] --> G[Android phone gateway<br/>on local Wi-Fi] --> Ph[Ward officers' phones]
+    N --> X[/exports/ samples/]
+```
+
+* **Ward plan contract.** Notices never compute supplies themselves; they read one *ward plan* per ward with `required`, `allocated`, `deficit`, `coverage_pct`, `deficit_level`, `priority_rank` and `spray_teams` (full spec: [docs/PHASE2_PLAN_CONTRACT.md](docs/PHASE2_PLAN_CONTRACT.md)). Until the allocation engine (Requirement 1) is committed as `src/plan.py`, a clearly labelled stand-in (`src/plan_stub.py`, `source: "stub"`) fills the plan: required = forecast cases × per-ward supply ratios learned from the Phase 2 columns (train + validation years only); allocated = a stock pool of `stock_pct` % handed out in priority order (tier, risk score, population density); crews by tier. Requirement 1 replaces it automatically.
+* **Channels.** `src/dispatch.py` renders the same notice three ways from fixed English and Bangla templates (no LLM): an SMS kept in one 160-character GSM segment in English (Bangla is Unicode, 70 characters per part, and the segment count is shown); a WhatsApp alert with bold labels; and a one-page printable commissioner brief (supplies table, deficit alert, action, referral hospitals, signature lines) that saves as PDF from the browser. `python -m src.export_samples` writes all three, in both languages, to `exports/`.
+* **Dispatch centre** (`web/dispatch.html`, linked from the dashboard's Operations strip): week, horizon, regional stock and crew controls; wards in priority order with deficit badges; per-ward SMS / WhatsApp / brief previews; copy, send and print.
+* **Automatic SMS without a paid gateway.** `src/sms_gateway.py` sends through an Android phone running the open-source *SMS Gateway for Android* app in local-server mode: Shotorko posts each message to the phone over the local Wi-Fi or the phone's hotspot, and the phone sends it from its own SIM. Every message goes through a local SQLite outbox (`queued → sending → sent → delivered`, or `failed` with the reason); one background worker sends with a pause between messages (Android rate limits), retries up to 3 times, keeps messages queued while the phone is unreachable, and refuses to queue the same notice to the same ward for the same week twice. `SMS_MODE=dry_run` (default) logs without sending; `SMS_OVERRIDE_TO` routes every message to one demo number. Credentials live in `.env` and real phone numbers in `data/ward_contacts.csv`; both are git-ignored.
+
+## 9. Phase 2: offline resilience (Requirement 5)
+
+**Everything that decides anything runs on this machine:** the trained model bundle, the dataset, supply plans, dispatch templates, the outbox and every web asset (deck.gl, Natural Earth outlines and the fonts are all bundled; the pages reference no internet URL). Runtime LLM calls: 0.
+
+| Component | Needs internet? | When the internet is gone |
+|---|---|---|
+| Forecasts, drivers, simulator, model trust | No | Unchanged |
+| Supply plans and deficit alerts | No | Unchanged |
+| Dispatch notices (SMS, WhatsApp, brief) and `/exports` | No | Unchanged |
+| SMS sending | No (phone on local Wi-Fi/hotspot; SMS goes over the mobile network) | Unchanged; if the phone itself is unreachable, messages wait in the outbox |
+| Live weather (optional) | Yes (Open-Meteo) | Uses the last cached weather; with no cache it fails in milliseconds and the UI returns to replay mode |
+
+* **Kill switch.** `SHOTORKO_OFFLINE=1` forbids every internet request. Without it, a 1.5 s connectivity probe (cached 30 s) stops the app from waiting on long HTTP timeouts when Wi-Fi is up but the internet is not.
+* **Visible state.** `/api/health` reports `offline_forced`, `internet`, what runs locally and the state of the optional services; both pages show an "Offline · local mode" badge.
+* **Proof.** `tests/test_offline.py` cuts the network at the socket level (only loopback allowed), forces offline mode and checks: health, meta, forecast, ward explanations, supply plans (allocated ≤ required, deficits appear at 50% stock), dispatch in every channel and both languages (English SMS ≤160 characters, briefs load nothing remote), live weather degrades without a 500, the SMS queue works in dry run, the export script runs, **no connection attempt is made**, and the web files contain no internet URLs.
+
+To check by hand: `SHOTORKO_OFFLINE=1 python run.py` (PowerShell: `$env:SHOTORKO_OFFLINE="1"; python run.py`), or simply turn Wi-Fi off and use the app.
+
+## 10. Limitations and next steps
 
 The organiser data looks synthetic (about 10k cases a year, while DGHS reports over 100k), so the accuracy numbers describe this dataset only. Ward IDs do not match official boundaries, so the map is schematic. Live mode uses real weather but seasonal-normal case counts until a DGHS case feed is connected. The next steps are a DGHS daily feed, Breteau-index larval surveys as an extra feature, and real ward polygons.
 

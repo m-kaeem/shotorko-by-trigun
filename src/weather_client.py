@@ -52,6 +52,13 @@ def _cached_get(url: str, params: dict) -> dict:
     if path.exists() and (time.time() - path.stat().st_mtime) < CACHE_TTL_HOURS * 3600:
         _bump_counter("cache_hits")
         return json.loads(path.read_text())
+    # offline (forced, or the quick probe failed): never wait on HTTP timeouts; use any cached copy or give up fast
+    from .offline import internet_ok
+    if not internet_ok():
+        if path.exists():
+            _bump_counter("cache_hits")
+            return json.loads(path.read_text())
+        raise RuntimeError("offline: no internet and no cached weather; showing replay mode instead")
     last_err = None
     for attempt in range(2):
         try:

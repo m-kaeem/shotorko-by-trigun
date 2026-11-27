@@ -284,9 +284,130 @@ def heatmap(h: int = Query(3, ge=2, le=4)):
             "score": piv("risk_score").fillna(0).round(0).astype(int).values.tolist()}
 
 
+# ------------------------------------------------------------------ Phase 2: ward plans + dispatch notices
+@lru_cache(maxsize=256)
+def _plans_cached(date: str, h: int, stock_pct: float, total_crews: int):
+    from .plan_stub import get_build_plans, totals
+    ref, _ = _resolve(date, "replay")
+    build, source = get_build_plans()
+    plans = build(ENGINE, ref.strftime("%Y-%m-%d"), h, stock_pct=stock_pct, total_crews=total_crews)
+    return {"date": ref.strftime("%Y-%m-%d"), "h": h, "stock_pct": stock_pct, "total_crews": total_crews,
+            "source": source, "plans": plans, "totals": totals(plans)}
+
+
+@app.get("/api/plan")
+def plan(date: str | None = None, h: int = Query(3, ge=2, le=4), stock_pct: float = Query(100.0, ge=30, le=100),
+         total_crews: int = Query(20, ge=0, le=500)):
+    return _plans_cached(date or "2025-07-07", h, round(stock_pct, 1), total_crews)
+
+
+def _one_plan(ward_id: str, date, h, stock_pct, total_crews) -> dict:
+    if ward_id not in POS:
+        raise HTTPException(404, "unknown ward")
+    plans = plan(date, h, stock_pct, total_crews)["plans"]
+    return next(p for p in plans if p["ward_id"] == ward_id)
+
+
+@app.get("/api/dispatch/{ward_id}")
+def dispatch_one(ward_id: str, date: str | None = None, h: int = Query(3, ge=2, le=4),
+                 stock_pct: float = Query(100.0, ge=30, le=100), total_crews: int = Query(20, ge=0, le=500),
+                 lang: str = Query("en", pattern="^(en|bn)$"),
+                 channel: str = Query("all", pattern="^(all|sms|whatsapp|brief)$")):
+    """One ward's notice. channel=brief returns the printable HTML page; all returns every channel as JSON."""
+    from fastapi.responses import HTMLResponse
+    from . import dispatch as D
+    p = _one_plan(ward_id, date, h, stock_pct, total_crews)
+    if channel == "brief":
+        return HTMLResponse(D.brief_html(p, lang))
+    text = D.sms(p, lang)
+    out = {"notice": D.notice(p, lang), "sms": {"text": text, "chars": len(text), "segments": D.sms_segments(text)},
+           "whatsapp": D.whatsapp(p, lang),
+           "brief_url": f"/api/dispatch/{ward_id}?channel=brief&lang={lang}&h={h}&stock_pct={stock_pct}"
+                        f"&total_crews={total_crews}&date={p['date']}"}
+    if channel == "sms":
+        return PlainTextResponse(text)
+    if channel == "whatsapp":
+        return PlainTextResponse(out["whatsapp"])
+    return out
+
+
+@app.get("/api/dispatch")
+def dispatch_all(date: str | None = None, h: int = Query(3, ge=2, le=4), stock_pct: float = Query(100.0, ge=30, le=100),
+                 total_crews: int = Query(20, ge=0, le=500), lang: str = Query("en", pattern="^(en|bn)$"),
+                 min_tier: str = Query("High", pattern="^(Low|Medium|High|Critical)$")):
+    """Notices for every ward at or above min_tier, in priority order (a whole dispatch round)."""
+    from . import dispatch as D
+    keep = C.TIERS[C.TIERS.index(min_tier):]
+    plans = [p for p in plan(date, h, stock_pct, total_crews)["plans"] if p["tier"] in keep]
+    plans.sort(key=lambda p: p["priority_rank"])
+    return {"count": len(plans), "notices": [{"ward_id": p["ward_id"], "city": p["city"], "tier": p["tier"], "priority_rank": p["priority_rank"],
+                                              "deficit_level": p["deficit_level"], "sms": D.sms(p, lang),
+                                              "whatsapp": D.whatsapp(p, lang)} for p in plans]}
+
+
+# ------------------------------------------------------------------ Phase 2: automatic SMS through the Android gateway
+@app.get("/api/sms/status")
+def sms_status():
+    from . import sms_gateway as G
+    return {**G.public_settings(), **G.gateway_status()}
+
+
+@app.post("/api/sms/send")
+async def sms_send(request: Request):
+    """Queue the SMS notice for one ward ({"ward_id": ...}) or a whole round ({"round": true, "min_tier": "High"})."""
+    from . import dispatch as D
+    from . import sms_gateway as G
+    b = await request.json()
+    date, h = b.get("date"), int(b.get("h", 3))
+    stock, crews, lang = float(b.get("stock_pct", 100)), int(b.get("total_crews", 20)), b.get("lang", "en")
+    if lang not in ("en", "bn") or h not in C.HORIZONS:
+        raise HTTPException(400, "bad lang or h")
+    plans = plan(date, h, stock, crews)["plans"]
+    if b.get("round"):
+        tier = b.get("min_tier", "High")
+        if tier not in C.TIERS:
+            raise HTTPException(400, "bad min_tier")
+        keep = C.TIERS[C.TIERS.index(tier):]
+        chosen = sorted((p for p in plans if p["tier"] in keep), key=lambda p: p["priority_rank"])
+    else:
+        chosen = [p for p in plans if p["ward_id"] == b.get("ward_id")]
+        if not chosen:
+            raise HTTPException(404, "unknown ward")
+    results = [G.enqueue(p["ward_id"], D.sms(p, lang), p["target_week"], lang, force=bool(b.get("force"))) for p in chosen]
+    count = lambda st: sum(1 for r in results if r["status"] == st and not r["duplicate"])
+    return {"mode": G.settings()["mode"], "requested": len(results), "queued": count("queued"),
+            "skipped": count("skipped"), "duplicates": sum(1 for r in results if r["duplicate"]),
+            "messages": [{"id": r["id"], "ward_id": r["ward_id"], "status": r["status"], "error": r["error"],
+                          "duplicate": r["duplicate"]} for r in results]}
+
+
+@app.get("/api/sms/outbox")
+def sms_outbox(week: str | None = None, limit: int = Query(200, ge=1, le=1000)):
+    from . import sms_gateway as G
+    return {"mode": G.settings()["mode"], "messages": G.outbox(limit, week)}
+
+
+@app.post("/api/sms/retry")
+def sms_retry():
+    from . import sms_gateway as G
+    return {"requeued": G.retry_failed()}
+
+
 @app.get("/api/health")
 def health():
-    return JSONResponse({"ok": True})
+    """Liveness plus the offline picture: what runs locally, and whether the internet is there at all."""
+    from . import offline
+    from . import sms_gateway as G
+    net = offline.status()
+    sms = G.settings()["mode"]
+    return JSONResponse({
+        "ok": True, **net,
+        "local": {"forecast_model": bool(ENGINE.bundle), "dataset_rows": int(len(ENGINE.raw)),
+                  "supply_plans": True, "dispatch_templates": True, "web_assets": "bundled (deck.gl, map, fonts)"},
+        "optional_network": {"live_weather": "available" if net["internet"] else "offline: replay and cached weather only",
+                             "sms_gateway": f"{sms} (local Wi-Fi phone; unsent SMS wait in the outbox)"},
+        "llm_calls": 0,
+    })
 
 
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
