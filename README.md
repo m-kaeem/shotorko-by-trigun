@@ -30,7 +30,7 @@ Optional commands:
 ```bash
 python -m pytest -q          # lag pipeline (no leakage), model, API, and the offline kill-switch tests
 python -m src.train          # retrain all models from the CSV (~2.5 min), rewrites models/ and artifacts/
-python -m src.export_samples # regenerate exports/: sample SMS, WhatsApp alerts and printable briefs (EN + BN)
+python -m src.export_samples # regenerate exports/: sample SMS, WhatsApp alerts and printable office orders (EN + BN)
 ```
 
 **Offline:** the whole app runs without internet (model, data, notices, fonts and map are all local). Force it with `SHOTORKO_OFFLINE=1` (PowerShell: `$env:SHOTORKO_OFFLINE="1"; python run.py`); a yellow "Offline · local mode" badge appears. Details in ARCHITECTURE.md §11.
@@ -53,7 +53,7 @@ python -m src.export_samples # regenerate exports/: sample SMS, WhatsApp alerts 
 | **Your data** | Upload a short or incomplete CSV (weekly or daily; only a date plus rainfall or temperature is required). Forecasts come from a robust model trained for missing data, with the typical error measured for that data shape. A sample CSV is included. |
 | **How it works** | Animated "breeding clock" (rain → standing water → mosquitoes → patients) and live system stats: inference time, API calls, LLM tokens (0). |
 | **Operations strip** | Cards on the dashboard for the Phase 2 modules. Dispatch notices opens its own page; resource allocation opens the Supplies tab and hospital overflow opens the Hospital beds tab; the spray simulator opens the Crew simulator tab. |
-| **Dispatch centre** | A separate page for ward notices: pick week, horizon, regional stock and crews; wards in priority order with supply-deficit badges; each ward's **SMS**, **WhatsApp** alert and **printable commissioner brief** (EN/BN), with copy, print and **automatic SMS sending** through a phone gateway, including live delivery status. |
+| **Dispatch centre** | A separate page for ward notices: pick week, horizon, regional stock and crews; wards in priority order with supply-deficit badges; each ward's **SMS**, **WhatsApp** alert and **printable office order** (EN/BN, in the Bangladesh government memo format), with copy, print and **automatic SMS sending** through a phone gateway, including live delivery status. |
 | **Offline mode** | Everything runs on the laptop with no internet; an "Offline · local mode" badge shows when the connection is gone. |
 | **For everyone** | Full **English / বাংলা** switch (including numerals), a 4-step guided tour on first visit, keyboard-accessible controls, CSV field plan download, and reduced-motion support. |
 
@@ -115,7 +115,7 @@ src/predict.py             inference engine, TreeSHAP drivers, what-if scenarios
 src/weather_client.py      optional Open-Meteo client (single request, disk cache, call counter, offline fallback)
 src/supply.py              per-case supply ratios (saline, kits, beds) learned from the Phase 2 columns
 src/plan_stub.py           ward plans (required/allocated/deficit, crews) until the allocation engine lands
-src/dispatch.py            dispatch notices: SMS, WhatsApp and printable brief templates (EN/BN)
+src/dispatch.py            dispatch notices: SMS, WhatsApp and printable office-order templates (EN/BN)
 src/sms_gateway.py         automatic SMS through an Android phone gateway, with a local outbox
 src/offline.py             offline switch, connectivity probe, .env loader
 src/export_samples.py      writes exports/ (sample notices for every High+ ward)
@@ -124,7 +124,7 @@ web/vendor/, web/data/     vendored deck.gl and Natural Earth map outlines (see 
 web/fonts/                 self-hosted fonts, so pages need no internet
 data/                      Phase 2 dataset (Phase 1 columns + saline/kits/beds), contacts template
 docs/PHASE2_PLAN_CONTRACT.md   the ward-plan interface shared by Requirements 1-5
-exports/                   sample SMS, WhatsApp and printable briefs
+exports/                   sample SMS, WhatsApp and printable office orders
 models/                    serialized joblib model bundle
 artifacts/                 metrics.json + backtest predictions used by the Model trust page
 tests/                     pipeline, model and API tests
