@@ -447,6 +447,7 @@
     buildHorizons();
     // timeline label + badge
     if (S.mode === "replay") updateCalLabel(); else $("#dateLabel").textContent = fmtDate(S.fc.ref_date, true);
+    const whenSub = $("[data-i=stepWhenSub]"); if (whenSub) whenSub.textContent = t(S.mode === "live" ? "stepWhenSubLive" : "stepWhenSub");
     renderFreshness();
     const b = $("#sampleBadge");
     if (S.mode === "live") { b.className = "badge live"; b.textContent = t("liveBadge"); }
@@ -1061,7 +1062,8 @@
     if (S.playing) stopPlay();
     S.mode = m;
     $("#modeReplay").setAttribute("aria-pressed", m === "replay"); $("#modeLive").setAttribute("aria-pressed", m === "live");
-    $("#timeline").style.display = m === "live" ? "none" : "";
+    // live mode has no week to pick, but the horizon and the Replay / Live switch must stay reachable
+    $("#timeline").classList.toggle("is-live", m === "live");
     $("#liveInfo").style.display = m === "live" ? "flex" : "none";
     if (m === "live") setView("fc", true);
     buildWhatIf();

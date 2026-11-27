@@ -72,6 +72,8 @@ main{max-width:1440px;margin:0 auto;padding:24px 28px 56px;display:flex;flex-dir
 .play.on{animation:pulse 1.6s infinite}
 .timeline .range-wrap{flex:1 1 320px;display:flex;flex-direction:column;gap:4px;min-width:200px}
 .timeline .when{font-weight:700;font-size:15px;min-width:180px}
+/* live weather: no week picker, no play, no 'what really happened' (the future has no actuals yet) */
+.timeline.is-live #playBtn,.timeline.is-live .cal-wrap,.timeline.is-live .ctl:has(#viewFc){display:none}
 .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;border-radius:999px;padding:4px 10px;border:1px solid var(--line-2);color:var(--ink-2)}
 .badge.oos{border-color:rgba(34,197,94,.5);color:#86EFAC;background:rgba(34,197,94,.08)}
 .badge.ins{border-color:rgba(250,204,21,.5);color:#FDE68A;background:rgba(250,204,21,.07)}
