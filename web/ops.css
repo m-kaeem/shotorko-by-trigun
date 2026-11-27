@@ -123,3 +123,13 @@ b.purple{color:#C4B5FD}
 .ops-fixopt{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;color:#FFE4E6}
 .ops-fixopt small{color:#FDA4AF}
 .ops-fixbtn{border-color:rgba(34,211,238,.55);color:#CFFAFE;background:rgba(34,211,238,.1)}
+
+/* reset buttons */
+.ops-deck{position:relative}
+.ops-sl-r{display:inline-flex;align-items:center;gap:8px}
+.ops-reset{font:600 11px/1 Inter,system-ui,sans-serif;color:var(--cyan-2);background:transparent;border:1px solid rgba(34,211,238,.45);border-radius:999px;padding:5px 9px;cursor:pointer;white-space:nowrap}
+.ops-reset:hover{background:rgba(34,211,238,.12)}
+.ops-reset[hidden]{display:none}
+.ops-resetall{position:absolute;top:14px;right:16px;font-size:12px;padding:7px 12px}
+#opsHospReset{display:flex;justify-content:flex-end;margin-bottom:-6px}
+#opsHospReset:empty{display:none}

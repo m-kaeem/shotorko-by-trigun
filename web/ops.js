@@ -22,6 +22,7 @@
       capScale: "Hospital bed capacity", capHelp: "of each ward's usual dengue beds",
       life: "Minimum for every ward", lifeHelp: "guaranteed share of each supply before priority sharing (0% = off)",
       real: "Or type what's in the warehouse", realNote: "Real counts replace the stock slider for that item.", clear: "Clear",
+      reset: "Reset", resetAll: "Reset all", resetTip: "Back to the default setting", clearReserve: "Clear reserve beds",
       realItems: { saline: "Saline bags", kits: "Diagnostic kits", beds: "Hospital beds" }, overridden: "using real counts",
       fixTitle: "What it takes to clear every critical deficit",
       fixMore: (s, k, b) => `Get more stock: +${loc(s)} saline bags, +${loc(k)} kits, +${loc(b)} beds`,
@@ -62,6 +63,7 @@
       capScale: "হাসপাতাল বেড ক্ষমতা", capHelp: "প্রতিটি ওয়ার্ডের স্বাভাবিক ডেঙ্গু বেডের",
       life: "প্রতিটি ওয়ার্ডের ন্যূনতম", lifeHelp: "অগ্রাধিকার অনুযায়ী ভাগের আগে প্রতিটি জিনিসের নিশ্চিত অংশ (০% = বন্ধ)",
       real: "অথবা গুদামে আসলে কত আছে লিখুন", realNote: "আসল সংখ্যা দিলে ওই জিনিসের জন্য স্টক স্লাইডার আর লাগবে না।", clear: "মুছুন",
+      reset: "রিসেট", resetAll: "সব রিসেট", resetTip: "ডিফল্ট সেটিংয়ে ফিরুন", clearReserve: "সংরক্ষিত বেড মুছুন",
       realItems: { saline: "স্যালাইন ব্যাগ", kits: "পরীক্ষার কিট", beds: "হাসপাতাল বেড" }, overridden: "আসল সংখ্যা ব্যবহার হচ্ছে",
       fixTitle: "সব জরুরি ঘাটতি দূর করতে যা লাগবে",
       fixMore: (s, k, b) => `আরও স্টক আনুন: +${loc(s)} স্যালাইন, +${loc(k)} কিট, +${loc(b)} বেড`,
@@ -96,6 +98,7 @@
   // register the nav label so app.js's applyLang() can fill it
   Object.entries(STR).forEach(([l, o]) => { if (window.I18N && window.I18N[l]) window.I18N[l].tabOps = o.tabOps; });
 
+  const DEF = { stock: 0.6, crews: 60, cap: 1.0, life: 0, basis: "expected", policy: "weighted" };   // what Reset goes back to
   const O = { stock: 0.6, crews: 60, cap: 1.0, float: {}, life: 0, real: { saline: "", kits: "", beds: "" }, basis: "expected", policy: "weighted", city: null, alloc: null, surge: null, prevStatus: {}, built: false, seq: 0 };
   const SK = () => window.SK;
   const L = () => STR[SK().S.lang] || STR.en;
@@ -115,6 +118,7 @@
       <div class="hero"><div><h1>${T.title}</h1><p>${T.sub}</p></div>
         <span class="ops-offline"><i></i>${T.offline}</span></div>
       <div class="card ops-deck">
+        <button type="button" class="ops-reset ops-resetall" id="opsResetAll" title="${T.resetTip}" hidden>↺ ${T.resetAll}</button>
         <div class="ops-row">
           <div class="ops-field"><span class="eyebrow">${T.week}</span>
             <div class="ops-week"><button class="step" data-wk="-1" aria-label="Previous week">‹</button><b id="opsWeek">–</b><button class="step" data-wk="1" aria-label="Next week">›</button></div>
@@ -128,10 +132,10 @@
             <small id="opsPolicyHelp">${T.policyHelp[O.policy]}</small></div>
         </div>
         <div class="ops-sliders">
-          ${slider("opsStock", T.stock, T.stockHelp, 30, 100, 5, Math.round(O.stock * 100), "%")}
-          ${slider("opsLife", T.life, T.lifeHelp, 0, 50, 5, Math.round(O.life * 100), "%")}
-          ${slider("opsCrews", T.crews, T.crewsHelp, 0, 200, 1, O.crews, "")}
-          ${slider("opsCap", T.capScale, T.capHelp, 50, 200, 5, Math.round(O.cap * 100), "%")}
+          ${slider("opsStock", T.stock, T.stockHelp, 30, 100, 5, Math.round(O.stock * 100), "%", Math.round(DEF.stock * 100))}
+          ${slider("opsLife", T.life, T.lifeHelp, 0, 50, 5, Math.round(O.life * 100), "%", Math.round(DEF.life * 100))}
+          ${slider("opsCrews", T.crews, T.crewsHelp, 0, 200, 1, O.crews, "", DEF.crews)}
+          ${slider("opsCap", T.capScale, T.capHelp, 50, 200, 5, Math.round(O.cap * 100), "%", Math.round(DEF.cap * 100))}
         </div>
         <div class="ops-real"><span class="eyebrow">${T.real}</span>
           ${["saline", "kits", "beds"].map((k) => `<label class="ops-num"><span>${T.realItems[k]}</span><input type="number" min="0" step="1" inputmode="numeric" id="opsReal_${k}" value="${O.real[k]}"></label>`).join("")}
@@ -144,6 +148,7 @@
         <div class="ops-table-wrap"><table class="ops-table" id="opsTable"></table></div></div>
       <h2 class="h-font ops-h2">${T.surgeTitle}</h2>
       <p class="ops-muted ops-p">${T.surgeSub}<br><small>${T.capRule}</small></p>
+      <div id="opsHospReset"></div>
       <div class="ops-cities" id="opsCities"></div>
       <div id="opsEsc"></div>
       <div class="two">
@@ -156,8 +161,9 @@
     O.built = true;
   }
   const dl = () => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
-  function slider(id, label, help, min, max, step, val, unit) {
-    return `<label class="ops-slider" for="${id}"><span class="ops-sl-top"><span class="eyebrow">${label}</span><b id="${id}V">${loc(val)}${unit}</b></span>
+  function slider(id, label, help, min, max, step, val, unit, def) {
+    return `<label class="ops-slider" for="${id}"><span class="ops-sl-top"><span class="eyebrow">${label}</span>
+      <span class="ops-sl-r"><button type="button" class="ops-reset" data-reset="${id}" data-def="${def}" title="${L().resetTip}" hidden>↺ ${L().reset}</button><b id="${id}V">${loc(val)}${unit}</b></span></span>
       <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" data-unit="${unit}" style="--p:${(val - min) / (max - min) * 100}%">
       <small>${help}</small></label>`;
   }
@@ -171,21 +177,23 @@
       if (inp.id === "opsCrews") O.crews = v;
       if (inp.id === "opsCap") O.cap = v / 100;
       if (inp.id === "opsLife") O.life = v / 100;
-      go();
+      updateResets(); go();
     }));
+    $$("#tab-ops .ops-reset[data-reset]").forEach((b) => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); setSlider(b.dataset.reset, +b.dataset.def); });
+    $("#opsResetAll").onclick = resetAll;
     const goReal = SK().debounce(load, 350);
     ["saline", "kits", "beds"].forEach((k) => $(`#opsReal_${k}`).addEventListener("input", (e) => {
       const v = e.target.value.trim();
       O.real[k] = v === "" ? "" : String(Math.max(0, Math.floor(+v) || 0));
-      goReal(); markReal();
+      goReal(); markReal(); updateResets();
     }));
-    $("#opsRealClear").onclick = () => { O.real = { saline: "", kits: "", beds: "" }; ["saline", "kits", "beds"].forEach((k) => $(`#opsReal_${k}`).value = ""); markReal(); load(); };
+    $("#opsRealClear").onclick = () => { O.real = { saline: "", kits: "", beds: "" }; ["saline", "kits", "beds"].forEach((k) => $(`#opsReal_${k}`).value = ""); markReal(); updateResets(); load(); };
     markReal();
     $$("#opsH button").forEach((b) => b.onclick = () => { SK().setH(+b.dataset.h); $$("#opsH button").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); });
-    $$("#opsBasis button").forEach((b) => b.onclick = () => { O.basis = b.dataset.b; $$("#opsBasis button").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); });
+    $$("#opsBasis button").forEach((b) => b.onclick = () => { O.basis = b.dataset.b; $$("#opsBasis button").forEach((x) => x.setAttribute("aria-pressed", x === b)); updateResets(); load(); });
     $$("#opsPolicy button").forEach((b) => b.onclick = () => {
       O.policy = b.dataset.p; $$("#opsPolicy button").forEach((x) => x.setAttribute("aria-pressed", x === b));
-      $("#opsPolicyHelp").textContent = L().policyHelp[O.policy]; load();
+      $("#opsPolicyHelp").textContent = L().policyHelp[O.policy]; updateResets(); load();
     });
     $$(".ops-week .step").forEach((b) => b.onclick = () => {
       const i = S.dates.indexOf(S.date) + +b.dataset.wk;
@@ -193,6 +201,25 @@
     });
     $("#opsCsv").onclick = csvAlloc;
     $("#opsCsvT").onclick = csvTransfers;
+    updateResets();
+  }
+  // Reset buttons show only where something differs from the default
+  const anyReserve = () => Object.values(O.float).some((n) => n > 0);
+  const anyReal = () => ["saline", "kits", "beds"].some((k) => O.real[k] !== "");
+  function updateResets() {
+    $$("#tab-ops .ops-reset[data-reset]").forEach((b) => { const inp = $("#" + b.dataset.reset); b.hidden = !inp || +inp.value === +b.dataset.def; });
+    const changed = O.stock !== DEF.stock || O.crews !== DEF.crews || O.cap !== DEF.cap || O.life !== DEF.life
+      || O.basis !== DEF.basis || O.policy !== DEF.policy || anyReal() || anyReserve();
+    const all = $("#opsResetAll"); if (all) all.hidden = !changed;
+    const hr = $("#opsHospReset");
+    if (hr) {
+      hr.innerHTML = anyReserve() ? `<button type="button" class="ops-reset" id="opsClearReserve" title="${L().resetTip}">↺ ${L().clearReserve}</button>` : "";
+      const cb = $("#opsClearReserve"); if (cb) cb.onclick = () => { O.float = {}; updateResets(); load(); };
+    }
+  }
+  function resetAll() {
+    Object.assign(O, DEF, { float: {}, real: { saline: "", kits: "", beds: "" } });
+    build(); load();
   }
 
   // ------------------------------------------------------------------ data
@@ -239,6 +266,7 @@
   // ------------------------------------------------------------------ render
   function render() {
     const T = L(), a = O.alloc, s = O.surge, S = SK().S;
+    updateResets();
     $("#opsWeek").textContent = SK().fmtDate(a.ref_date, true);
     $("#opsTarget").textContent = `${T.target}: ${SK().fmtDate(a.target_date, true)}`;
     // KPI cards
