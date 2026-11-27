@@ -88,8 +88,12 @@
     const m = S.box[wid];
     if (!m) return canReach(wid) ? `<span class="dx-st none">${t("dxNotSent")}</span>` : `<span class="dx-st nonum">${t("dxNoNum")}</span>`;
     const ok = ["sent", "delivered"].includes(m.status);
+    if (isWaiting(m)) return `<span class="dx-st waiting">${t("smsWaiting")}</span>`;
     return `<span class="dx-st ${m.status}">${ok ? ICON_OK : ""}${t("smsSt")[m.status] || m.status}</span>`;
   }
+  // handed to the phone service over a minute ago, but the phone has not picked it up yet
+  const isWaiting = (m) => m.status === "sending" && !!m.provider_id && Date.now() - new Date(m.updated || m.created).getTime() > 60000;
+  const clock = (iso) => loc(new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
   const ICON_OK = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
   const ICON_WARN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
   const PHONE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>';
@@ -234,17 +238,20 @@
     const m = S.box[wid];
     if (!m) return `<div class="sms-log">${t("dxNever")}</div>`;
     const when = (m.updated || "").replace("T", " ").slice(0, 16);
-    return `<div class="sms-log">${statusChip(wid)} ${esc(m.phone || "")} · ${loc(when)}${m.route ? ` · ${(t("smsRoute") || {})[m.route] || m.route}` : ""}${m.error ? ` · ${esc(m.error)}` : ""}</div>`;
+    return `<div class="sms-log">${statusChip(wid)} ${esc(m.phone || "")} · ${loc(when)}${m.route ? ` · ${(t("smsRoute") || {})[m.route] || m.route}` : ""}${m.error ? ` · ${esc(m.error)}` : ""}</div>${isWaiting(m) ? `<p class="dx-hint dx-wait">${t("smsWaitHint")}</p>` : ""}`;
   }
   async function loadGateway() {
     try {
       S.gw = await api("/api/sms/status");
       const el = $("#gw"), g = S.gw;
-      const cls = g.mode !== "android" ? "dry" : g.reachable ? "ok" : "down";
+      const idle = g.reachable && g.last_seen && Date.now() - new Date(g.last_seen).getTime() > 10 * 60000;
+      const cls = g.mode !== "android" ? "dry" : !g.reachable ? "down" : idle ? "idle" : "ok";
       el.className = "gw " + cls;
-      $("span", el).textContent = t("dxGw")[cls];
-      if (cls === "ok" && g.route) $("span", el).textContent += " · " + ((t("smsRoute") || {})[g.route] || g.route);
-      el.title = g.detail || "";
+      let txt = t("dxGw")[cls];
+      if (cls === "ok" && g.route) txt += " · " + ((t("smsRoute") || {})[g.route] || g.route);
+      if (g.last_seen && cls !== "dry") txt += " · " + t("gwSeen")(clock(g.last_seen));
+      $("span", el).textContent = txt;
+      el.title = idle ? t("gwIdleTip") : (g.detail || "");
     } catch (e) { /* status is informative only */ }
   }
   async function loadOutbox() {
@@ -260,7 +267,7 @@
     } catch (e) { S.poll = setTimeout(loadOutbox, 8000); }
   }
   async function sendSms(target, n, btn) {
-    await loadGateway();
+    if (!S.gw) await loadGateway(); else loadGateway();   // use the last known state; refresh it in the background
     const g = S.gw || { mode: "dry_run" };
     await loadContacts();
     const ids = target.ward_id ? [target.ward_id] : S.list.filter((x) => !isSent(x.ward_id)).map((x) => x.ward_id);

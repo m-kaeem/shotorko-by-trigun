@@ -58,7 +58,9 @@
 .dp-head-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .gw{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);padding:6px 11px;border-radius:999px;border:1px solid var(--glass-line);background:rgba(255,255,255,.03)}
 .gw i{width:8px;height:8px;border-radius:99px;background:#93A1BD}
-.gw.ok i{background:#22C55E}.gw.down i{background:#F43F5E}.gw.dry i{background:#FACC15}
+.gw.ok i{background:#22C55E}.gw.down i{background:#F43F5E}.gw.dry i{background:#FACC15}.gw.idle i{background:#FB923C}.gw.idle{color:#FED7AA}
+.dx-st.waiting{color:#FED7AA;border-color:rgba(251,146,60,.55)}
+.dx-wait{color:#FED7AA}
 .sms-st{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap;border:1px solid var(--glass-line);color:var(--ink-2)}
 .sms-st.delivered,.sms-st.sent{color:#86EFAC;border-color:rgba(34,197,94,.45)}
 .sms-st.queued,.sms-st.sending{color:#67E8F9;border-color:rgba(34,211,238,.45)}
