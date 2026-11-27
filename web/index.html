@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Hind+Siliguri:wght@400;500;600;700&family=Exo+2:ital,wght@1,800;1,900&display=swap">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="ops.css">
+<link rel="stylesheet" href="sim.css">
 </head>
 <body>
 <header class="top reveal">
@@ -40,6 +41,7 @@
     <button role="tab" data-tab="map" aria-selected="true" data-i="tabMap"></button>
     <button role="tab" data-tab="trust" aria-selected="false" data-i="tabTrust"></button>
     <button role="tab" data-tab="ops" aria-selected="false" data-i="tabOps"></button>
+    <button role="tab" data-tab="sim" aria-selected="false" data-i="tabSim"></button>
     <button role="tab" data-tab="data" aria-selected="false" data-i="tabData"></button>
     <button role="tab" data-tab="how" aria-selected="false" data-i="tabHow"></button>
   </nav>
@@ -169,6 +171,9 @@
   <!-- ================= OPERATIONS TAB (Phase 2: allocation + overflow routing, built by web/ops.js) ================= -->
   <section class="tab" id="tab-ops" role="tabpanel"></section>
 
+  <!-- ================= CREW SIMULATOR TAB (Phase 2 Req 3: vector-control what-if, built by web/sim.js) ================= -->
+  <section class="tab" id="tab-sim" role="tabpanel"></section>
+
   <!-- ================= YOUR DATA TAB ================= -->
   <section class="tab" id="tab-data" role="tabpanel">
     <div class="hero"><div><h1 data-i="dataTitle"></h1><p data-i="dataText"></p></div></div>
@@ -208,5 +213,6 @@
 <script src="i18n.js"></script>
 <script src="app.js"></script>
 <script src="ops.js"></script>
+<script src="sim.js"></script>
 </body>
 </html>

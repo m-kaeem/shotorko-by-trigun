@@ -127,6 +127,36 @@ For predicted cases the same ratios are used but rounded **up** (ceil), as the w
 * Outputs: each ward's net deficit or spare beds, the patients it sent and received, its bed use after routing, a transfer list (from → to, patients, schematic km), and each city's capacity, bed use before and after, and remaining spare beds. Both tables export as CSV.
 * On the 105 test weeks of 2024–25 (using the real case counts), at least one ward exceeds capacity in 20% of weeks, routing resolves most of these, and 4% of weeks still need escalation. Tighter rules (90th percentile: 15% of weeks escalate) or looser ones (the highest week ever: overflow in 1% of weeks) were rejected.
 
+## Phase 2 vector-control simulator (requirement 3)
+
+Code: `src/simulation.py` (model), `src/vector_sim.py` (the hook `src/plan.py` calls on `POST /api/plan/simulate`), `POST /api/simulate` and `GET /api/simulate/roi` in `src/api.py`; UI: the **Crew simulator** tab (`web/sim.js`). Tests: `tests/test_simulation.py`. Offline and deterministic.
+
+```
+feature row (ward, week t) ─┬─► LightGBM h=2,3,4 ─► cases without crews ─┐
+                            └─► crew effect on the features ─► LightGBM ─► cases with crews ─┴─► prevented, beds, saline, ROI
+```
+
+**Model-driven counterfactual, not a fixed %.** For each ward and horizon the deployed forecast models run twice: once on the real features, once on the features the crews' work would produce. The difference, summed over weeks +2…+4, is `cases_prevented`; beds and saline use Requirement 1's ratios (`SUPPLY_RATIOS`), so they match the Operations tab. The same crew prevents more in a waterlogged ward after heavy rain than in a dry-season ward, because that is what the model learned.
+
+**Two crew types** (fogging is deliberately not offered: no proven case reduction in trials, and Dhaka *Aedes* is highly pyrethroid-resistant):
+
+| Crew | What it changes in the model | Size of effect | Timing |
+|---|---|---|---|
+| Larvicide / source reduction | breeding-water features (rain lags and totals, water-logging, sanitation gap, their rain interactions) | each crew treats 20% of the remaining habitat (guess); at full coverage the central setting removes 35% of effective breeding water, which gives ~28% fewer model cases in peak weeks, matching the 29.5% of the Camino Verde RCT | nothing in week 1, half by week 2, full from week 3 |
+| Targeted indoor spraying (non-pyrethroid) around recent cases | recent-case features (onward transmission) fully, and 40% of that on the breeding-water features (the adult mosquitoes around the treated homes) | each crew covers the homes around ~6 recent cases a week (guess), with diminishing coverage when cases are many; 50% ward-level effect at full coverage (Cairns: 86–96% at treated premises) | most of the effect in week 1, fading to 70% by week 4; no recent cases means nothing to target |
+
+**Outputs.** Per ward: crews and crew mix, cases prevented with a low/central/high band, beds, saline and kits saved, ROI (cases prevented per crew) with its band, a week-by-week breakdown, and the **cost of waiting one week** (the same crews sent next week). Wards are ranked by ROI for one crew of whichever type works better there.
+
+**Optimiser.** "Auto-plan" gives each crew, one at a time, to the (ward, crew type) where it prevents the most extra cases; a ward keeps one crew type. Because each ward's gains have diminishing returns, this greedy plan is near-optimal for the modelled gains, and it beats sending one crew to each of the top-ROI wards. In peak season it mostly picks larvicide (rain drives the forecast); outside the season it picks indoor spraying where a few recent cases can be chased.
+
+**Money view.** Treatment cost avoided = cases prevented × hospitalised share (0.298, Requirement 1's bed ratio) × BDT 39,893, the societal cost of one hospitalised dengue episode in Dhaka (Sarker et al., *PLOS NTD* 2023, PMC10723663, 2019 data). Crew cost per 2–4 week deployment is an estimate (larvicide BDT 100,000, indoor spraying BDT 120,000: 5 workers × BDT 800/day × 18 days plus chemicals). Outputs: money saved, crew cost, net benefit, benefit/cost ratio and crew cost per case prevented. All three costs are editable in the UI and the API (`costs`). Savings are a floor, because outpatient costs and lost work days are not counted.
+
+**Model check** (`GET /api/simulate/check`, shown in the tab). On the out-of-sample test weeks of 2024–25, keeping 90 / 75 / 50% of the breeding-water features lowers the forecast by 8 / 23 / 48%, and 87–91% of ward-weeks never go up (the rest is tree-model noise, floored at zero per ward). Halving the recent-case features lowers it by only 2%, so in this dataset weather drives cases far more than case momentum. The raw data agrees: 4-week rain vs cases 3 weeks later has Spearman 0.77, and ward water-logging vs mean cases has 0.81. The onsite dataset adds only the three supply columns; the model's 12 input columns are identical to Phase 1, so the deployed model and its backtest still apply without retraining.
+
+**Limits.** Effect sizes are calibrated from published trials, not measured in these wards; crew coverage and the onset curves are stated guesses. The model has no crew history to learn from, so the simulator shows the model's response to changed inputs, with the uncertainty band, rather than a validated causal effect.
+
+**References for this section:** Andersson et al., Camino Verde cluster RCT, *BMJ* 2015 (PMC4495677); Vazquez-Prokopec et al., *Sci Adv* 2017, Cairns targeted indoor spraying (PMC5315446); Bowman et al. 2016, systematic review of vector control (PMC4795802); pyrethroid resistance of Dhaka *Aedes aegypti* (PubMed 36942761); Hladish et al., *PLOS NTD* 2018, timing of indoor spraying (PMC6042783).
+
 ## 8. Limitations and next steps
 
 The organiser data looks synthetic (about 10k cases a year, while DGHS reports over 100k), so the accuracy numbers describe this dataset only. Ward IDs do not match official boundaries, so the map is schematic. Live mode uses real weather but seasonal-normal case counts until a DGHS case feed is connected. The next steps are a DGHS daily feed, Breteau-index larval surveys as an extra feature, and real ward polygons.
