@@ -157,6 +157,61 @@ def forecast(date: str | None = None, rain: float = Query(1.0, ge=0, le=3), temp
     return out
 
 
+# ------------------------------------------------------------------ Phase 2 ward plans (docs/PHASE2_PLAN_CONTRACT.md)
+def _plans(date, h, stock_pct, total_crews, deployments=None, rain=1.0, temp=0.0, hum=0.0, floating=None):
+    from .plan import build_plans, totals
+    date = date or "2025-07-07"
+    if date not in VALID_SET:
+        raise HTTPException(400, "date must be a dataset week between 2017-01-02 and 2025-12-01")
+    if not 30 <= stock_pct <= 100:
+        raise HTTPException(400, "stock_pct must be between 30 and 100")
+    sc = _scenario(rain, temp, hum)
+    try:
+        plans = build_plans(ENGINE, date, h, stock_pct=stock_pct, total_crews=total_crews,
+                            deployments=deployments, scenario=sc if sc.active else None, positions=POS,
+                            floating_beds=floating or None)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"plans": plans, "totals": totals(plans)}
+
+
+@app.get("/api/plan")
+def plan(date: str | None = None, h: int = Query(3, ge=2, le=4), stock_pct: float = Query(100.0, ge=30, le=100),
+         total_crews: int = Query(20, ge=0, le=1000), rain: float = Query(1.0, ge=0, le=3),
+         temp: float = Query(0.0, ge=-5, le=5), hum: float = Query(0.0, ge=-30, le=30),
+         floating_beds: str | None = Query(None, description="reserve beds per city, e.g. 'Gazipur:2'")):
+    from .surge import CITY_ORDER, parse_city_counts
+    try:
+        floating = parse_city_counts(floating_beds, CITY_ORDER)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return _plans(date, h, stock_pct, total_crews, None, rain, temp, hum, floating)
+
+
+@app.post("/api/plan/simulate")
+async def plan_simulate(request: Request):
+    try:
+        b = await request.json()
+    except Exception:
+        raise HTTPException(400, "body must be JSON")
+    dep = b.get("deployments") or {}
+    if not isinstance(dep, dict):
+        raise HTTPException(400, "deployments must be an object {ward_id: crews_sent}")
+    try:
+        h = int(b.get("h", 3))
+        stock = float(b.get("stock_pct", 100.0))
+        crews = int(b.get("total_crews", 20))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "h, stock_pct and total_crews must be numbers")
+    if h not in C.HORIZONS:
+        raise HTTPException(400, "h must be 2, 3 or 4")
+    floating = b.get("floating_beds") or None
+    if floating is not None and not isinstance(floating, (dict, int)):
+        raise HTTPException(400, "floating_beds must be {city: beds} or one number for every city")
+    return _plans(b.get("date"), h, stock, crews, dep, float(b.get("rain", 1.0)), float(b.get("temp", 0.0)),
+                  float(b.get("hum", 0.0)), floating)
+
+
 @app.get("/api/ward/{ward_id}")
 def ward(ward_id: str, date: str | None = None, h: int = Query(3, ge=2, le=4), rain: float = 1.0, temp: float = 0.0,
          hum: float = 0.0, mode: str = Query("replay", pattern="^(replay|live)$")):
@@ -289,4 +344,7 @@ def health():
     return JSONResponse({"ok": True})
 
 
+from .ops_api import router as ops_router  # noqa: E402  (Phase 2 operations endpoints)
+
+app.include_router(ops_router)
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")

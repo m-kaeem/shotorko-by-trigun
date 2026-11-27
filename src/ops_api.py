@@ -1,0 +1,80 @@
+"""Operations endpoints (Phase 2): constrained allocation and hospital overflow routing.
+
+Both use the same cached LightGBM forecast as the map, so they work fully offline.
+"""
+from __future__ import annotations
+
+import pandas as pd
+from fastapi import APIRouter, HTTPException, Query
+
+from .resources import allocate
+from .surge import CITY_ORDER, load_capacity, parse_city_counts, route
+
+router = APIRouter(prefix="/api/ops", tags=["operations"])
+
+
+def _api():
+    from . import api   # imported lazily: api.py includes this router at import time
+    return api
+
+
+def _capacity() -> pd.Series:
+    return load_capacity(str(_api().ENGINE.bundle["risk"]["fit_end"]))
+
+
+def _frame(date, h, rain, temp, hum, mode, city=None):
+    a = _api()
+    out = a._forecast_cached(date or "2025-07-07", round(rain, 2), round(temp, 2), round(hum, 1), mode)
+    w = a.ENGINE.wards.set_index("ward_id")
+    rows = []
+    for x in out["wards"]:
+        f = x["h"][h - 2]
+        rows.append({"ward_id": x["id"], "city": w.at[x["id"], "city"], "density": int(w.at[x["id"], "population_density_sqkm"]),
+                     "tier": f["tier"], "pred": f["pred"] or 0.0, "hi": f["hi"] or 0.0, "actual": f["actual"]})
+    fc = pd.DataFrame(rows)
+    if city and city != "All":
+        if city not in set(fc.city):
+            raise HTTPException(400, "unknown city")
+        fc = fc[fc.city == city]
+    ctx = {"ref_date": out["ref_date"], "target_date": out["targets"][h - 2], "h": h, "mode": mode,
+           "scenario": out["scenario"], "city": city or "All"}
+    return fc, ctx
+
+
+@router.get("/allocate")
+def allocate_ep(date: str | None = None, h: int = Query(3, ge=2, le=4), rain: float = Query(1.0, ge=0, le=3),
+                temp: float = Query(0.0, ge=-5, le=5), hum: float = Query(0.0, ge=-30, le=30),
+                mode: str = Query("replay", pattern="^(replay|live)$"),
+                basis: str = Query("expected", pattern="^(expected|upper)$"),
+                stock: float = Query(1.0, ge=0.3, le=1.0, description="available regional stock, share of demand"),
+                crews: int = Query(60, ge=0, le=500, description="total spraying crews available"),
+                policy: str = Query("weighted", pattern="^(weighted|strict)$"),
+                city: str | None = None):
+    fc, ctx = _frame(date, h, rain, temp, hum, mode, city)
+    return {**ctx, **allocate(fc, stock_pct=stock, crews=crews, basis=basis, policy=policy)}
+
+
+@router.get("/surge")
+def surge_ep(date: str | None = None, h: int = Query(3, ge=2, le=4), rain: float = Query(1.0, ge=0, le=3),
+             temp: float = Query(0.0, ge=-5, le=5), hum: float = Query(0.0, ge=-30, le=30),
+             mode: str = Query("replay", pattern="^(replay|live)$"),
+             basis: str = Query("expected", pattern="^(expected|upper)$"),
+             cap_scale: float = Query(1.0, ge=0.25, le=3.0, description="multiplier on baseline bed capacity"),
+             max_util: float = Query(1.0, ge=0.5, le=1.0, description="highest bed occupancy a receiving ward may reach"),
+             floating: str | None = Query(None, description="reserve beds per city, e.g. 'Gazipur:2,Dhaka North:1'"),
+             city: str | None = None):
+    fc, ctx = _frame(date, h, rain, temp, hum, mode, city)
+    pos = _api().POS
+    try:
+        pools = parse_city_counts(floating, CITY_ORDER)
+        out = route(fc, _capacity(), scale=cap_scale, basis=basis, positions=pos, max_util=max_util, floating=pools)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {**ctx, **out, "positions": {k: pos[k] for k in fc.ward_id}}
+
+
+@router.get("/capacity")
+def capacity_ep():
+    cap = _capacity()
+    return {"rule": "95th percentile of weekly hospital_beds_required per ward, 2016-2023 (train + validation years; 2024-25 test years never used), min 2 beds",
+            "capacity": {k: int(v) for k, v in cap.items()}, "total": int(cap.sum())}
