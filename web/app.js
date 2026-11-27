@@ -747,7 +747,7 @@
       const t0 = performance.now();
       await loadForecast();
       if (i % 3 === 0) loadWard();
-      await new Promise((r) => setTimeout(r, Math.max(0, 750 - (performance.now() - t0))));
+      await new Promise((r) => setTimeout(r, Math.max(0, 1500 - (performance.now() - t0))));
     }
     stopPlay(); loadWard();
   }
