@@ -180,7 +180,8 @@ def stock_to_clear(demand, weight, fill_fn) -> int:
 
 
 def allocate(fc: pd.DataFrame, stock_pct: float = 1.0, crews: int = 60, basis: str = "expected",
-             stock_units: dict | None = None, policy: str = "weighted", min_share: float = 0.0) -> dict:
+             stock_units: dict | None = None, policy: str = "weighted", min_share: float = 0.0,
+             ors_share: float = 0.0) -> dict:
     """Run the allocation for one forecast week.
 
     fc columns: ward_id, city, density, tier, pred, hi (80 % upper bound).
@@ -190,6 +191,8 @@ def allocate(fc: pd.DataFrame, stock_pct: float = 1.0, crews: int = 60, basis: s
     policy: "weighted" (priority-weighted water filling) or "strict" (fill wards fully in priority order).
     min_share: lifeline, 0-0.5. Every ward first gets at least this share of each supply (not crews),
         then the rest is shared by `policy`. At 0.5 no ward is in critical deficit while stock allows it.
+    ors_share: 0-0.7, share of patients a doctor could treat with oral rehydration salts (mild cases).
+        Their IV saline need is removed; kits and beds are unchanged.
     """
     base_fill = strict_fill if policy == "strict" else water_fill
     min_share = float(min(max(min_share, 0.0), 0.5))
@@ -198,13 +201,17 @@ def allocate(fc: pd.DataFrame, stock_pct: float = 1.0, crews: int = 60, basis: s
     fc = fc.reset_index(drop=True)
     cases = fc["hi"] if basis == "upper" else fc["pred"]
     need = supplies_for(cases)
+    full_total = {k: int(v.sum()) for k, v in need.items()}     # stock % is of the need before ORS: same bags
+    ors_share = float(min(max(ors_share, 0.0), 0.7))
+    if ors_share > 0:
+        need["saline_bags_needed"] = supplies_for(np.asarray(cases, dtype=float) * (1 - ors_share))["saline_bags_needed"]
     w = priority_weights(fc["tier"], fc["density"])
     rank = (-w).argsort(kind="stable").argsort() + 1
 
     items, alloc = {}, {}
     for k in SUPPLY_COLS:
         total = int(need[k].sum())
-        stock = int((stock_units or {}).get(k, math.floor(stock_pct * total + 1e-9)))
+        stock = int((stock_units or {}).get(k, math.floor(stock_pct * full_total[k] + 1e-9)))
         a = fill(need[k], w, stock)
         alloc[k] = a
         clear = stock_to_clear(need[k], w, fill)
@@ -245,7 +252,9 @@ def allocate(fc: pd.DataFrame, stock_pct: float = 1.0, crews: int = 60, basis: s
     fix = {"extra": {k: v["extra_to_clear_critical"] for k, v in items.items()},
            "stock_pct": min(1.0, math.ceil(pct_to_clear * 100 - 1e-9) / 100),
            "needed": any(v["extra_to_clear_critical"] for v in items.values())}
-    return {"basis": basis, "policy": policy, "min_share": min_share, "stock_pct": stock_pct, "fix": fix,
+    ors_patients = round(float(np.clip(np.asarray(cases, dtype=float), 0, None).sum() * ors_share), 1)
+    return {"basis": basis, "policy": policy, "min_share": min_share, "ors_share": ors_share,
+            "ors_patients": ors_patients, "stock_pct": stock_pct, "fix": fix,
             "items": items, "crews": crews_out, "wards": wards,
             "warnings": warnings, "ratios": SUPPLY_RATIOS, "tier_weight": TIER_WEIGHT,
             "crews_by_tier": CREWS_BY_TIER, "dense_ward": DENSE_WARD,

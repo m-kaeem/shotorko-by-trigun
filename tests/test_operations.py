@@ -219,3 +219,32 @@ def test_page_files_are_revalidated_so_updates_show():
     for path in ("/", "/app.js", "/ops.js"):
         assert c.get(path).headers.get("cache-control") == "no-cache"
     assert "no-cache" not in (c.get("/api/health").headers.get("cache-control") or "")
+
+
+def test_emergency_bedding_after_transfers_own_ward_only_and_before_reserve():
+    cap = pd.Series({"A1": 2, "A2": 5, "A3": 4, "B1": 2, "B2": 2})
+    base = route(_fc(), cap)
+    out = route(_fc(), cap, bedding=0.5)
+    assert out["transfers"] == base["transfers"]                  # real beds elsewhere are used first
+    for w in out["wards"]:
+        assert w["required"] == w["local"] + w["sent"] + w["emergency"] + w["floating"] + w["unresolved"]
+        assert w["emergency"] <= w["emergency_cap"] == int(np.floor(w["capacity"] * 0.5 + 0.5))
+        if w["sent"] == 0 and w["required"] <= w["capacity"]:
+            assert w["emergency"] == 0                            # only wards with their own overflow use it
+    assert sum(w["unresolved"] for w in out["wards"]) < sum(w["unresolved"] for w in base["wards"])
+    both = route(_fc(), cap, bedding=0.5, floating={"A": 5, "B": 5})
+    alone = route(_fc(), cap, floating={"A": 5, "B": 5})
+    assert both["totals"]["floating_used"] <= alone["totals"]["floating_used"]   # floor beds come before reserve beds
+    assert any(w["status"] == "crowded" for w in out["wards"])
+
+
+def test_emergency_bedding_endpoint_and_plans():
+    from fastapi.testclient import TestClient
+    from src.api import app
+    c = TestClient(app)
+    j = c.get("/api/ops/surge", params={"date": "2025-07-07", "cap_scale": 0.85, "bedding": 0.25}).json()
+    j0 = c.get("/api/ops/surge", params={"date": "2025-07-07", "cap_scale": 0.85}).json()
+    assert j["totals"]["emergency_used"] > 0 and j["totals"]["unresolved"] < j0["totals"]["unresolved"]
+    assert c.get("/api/ops/surge", params={"bedding": 0.9}).status_code == 422
+    p = c.get("/api/plan", params={"date": "2025-07-07", "emergency_bedding_pct": 25}).json()["plans"]
+    assert all("emergency_beds" in x["overflow"] for x in p)

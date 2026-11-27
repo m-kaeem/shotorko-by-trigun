@@ -178,14 +178,16 @@ def recent_cases(engine, date) -> dict:
 
 # ---------------------------------------------------------------- core counterfactual
 def _treat(X: pd.DataFrame, vec_keep: np.ndarray, case_keep: np.ndarray) -> pd.DataFrame:
-    X = X.copy()
-    vcols = [c for c in X.columns if c.startswith(_RAIN_PREFIXES) or c in _SCALED]
-    X[vcols] = X[vcols].mul(vec_keep, axis=0)
-    if "sanitation_score" in X.columns:   # fewer open containers and blocked drains
-        X["sanitation_score"] = 1.0 - (1.0 - X["sanitation_score"]) * vec_keep
-    ccols = [c for c in X.columns if c.startswith(_CASE_PREFIX)]
-    X[ccols] = X[ccols].mul(case_keep, axis=0)
-    return X
+    cols = list(X.columns)
+    arr = X.to_numpy(dtype=float, copy=True)
+    v = [i for i, c in enumerate(cols) if c.startswith(_RAIN_PREFIXES) or c in _SCALED]
+    arr[:, v] *= np.asarray(vec_keep, dtype=float)[:, None]
+    if "sanitation_score" in cols:   # fewer open containers and blocked drains
+        i = cols.index("sanitation_score")
+        arr[:, i] = 1.0 - (1.0 - arr[:, i]) * vec_keep
+    cc = [i for i, c in enumerate(cols) if c.startswith(_CASE_PREFIX)]
+    arr[:, cc] *= np.asarray(case_keep, dtype=float)[:, None]
+    return pd.DataFrame(arr, columns=cols)
 
 
 def _counterfactual(engine, date, dep: dict, scenario=None, delay_weeks: int = 0) -> pd.DataFrame:
@@ -204,13 +206,22 @@ def _counterfactual(engine, date, dep: dict, scenario=None, delay_weeks: int = 0
         k = h - int(delay_weeks)
         base = model.predict(X).clip(0)
         frame = {"ward_id": wards, "horizon": h, "larvicide": a, "indoor": b, "without": base}
-        active = (a + b) > 0
+        active = np.flatnonzero((a + b) > 0)
         for lv in LEVELS:
-            rl = np.array([larv_reduction(x, k, lv) for x in a])
-            ri = np.array([indoor_reduction(y, rc.get(w, 0.0), k, lv) for w, y in zip(wards, b)])
-            vec_keep, case_keep = (1 - rl) * (1 - ri * INDOOR_VECTOR_SHARE), 1 - ri
-            pred = model.predict(_treat(X, vec_keep, case_keep)).clip(0) if active.any() else base
-            frame[f"with_{lv}"] = np.where(active, pred, base)
+            frame[f"with_{lv}"] = base.copy()
+        if active.size:   # one model call per horizon: only the treated wards, all three effect levels stacked
+            Xa = X.iloc[active]
+            parts, keeps_v, keeps_c = [], [], []
+            for lv in LEVELS:
+                rl = np.array([larv_reduction(x, k, lv) for x in a[active]])
+                ri = np.array([indoor_reduction(y, rc.get(w, 0.0), k, lv) for w, y in zip(wards[active], b[active])])
+                keeps_v.append((1 - rl) * (1 - ri * INDOOR_VECTOR_SHARE))
+                keeps_c.append(1 - ri)
+                parts.append(Xa)
+            pred = model.predict(_treat(pd.concat(parts, ignore_index=True), np.concatenate(keeps_v),
+                                        np.concatenate(keeps_c))).clip(0)
+            for i, lv in enumerate(LEVELS):
+                frame[f"with_{lv}"][active] = pred[i * active.size:(i + 1) * active.size]
         out.append(pd.DataFrame(frame))
     if not out:
         raise ValueError(f"no forecast rows for {date}")
@@ -222,9 +233,12 @@ def _counterfactual(engine, date, dep: dict, scenario=None, delay_weeks: int = 0
     return df
 
 
-def _sim_dict(a: int, b: int, g: pd.DataFrame, recent: float, delayed: float | None) -> dict:
+def _sim_dict(a: int, b: int, g: list, recent: float, delayed: float | None) -> dict:
+    """g: this ward's rows (one dict per horizon) from _counterfactual."""
     crews = a + b
-    p, lo, hi = (float(g[f"prevented_{lv}"].sum()) for lv in LEVELS)
+    g = sorted(g, key=lambda r: r["horizon"])
+    s = lambda k: float(sum(r[k] for r in g))  # noqa: E731
+    p, lo, hi = (s(f"prevented_{lv}") for lv in LEVELS)
     per = lambda x: round(x / crews, 2) if crews > 0 else 0.0  # noqa: E731
     d = {
         # contract fields
@@ -238,12 +252,12 @@ def _sim_dict(a: int, b: int, g: pd.DataFrame, recent: float, delayed: float | N
         "kits_saved": round(p * KITS_PER_CASE, 2),
         "cases_prevented_low": round(lo, 2), "cases_prevented_high": round(hi, 2),
         "roi_low": per(lo), "roi_high": per(hi),
-        "cases_without": round(float(g["without"].sum()), 2),
-        "cases_with": round(float(g["with"].sum()), 2),
+        "cases_without": round(s("without"), 2),
+        "cases_with": round(s("with"), 2),
         "recent_cases": round(recent, 1),
-        "by_week": [{"h": int(r.horizon), "without": round(float(r.without), 2),
-                     "with": round(float(r.with_central), 2), "prevented": round(float(r.prevented), 2)}
-                    for r in g.sort_values("horizon").itertuples()],
+        "by_week": [{"h": int(r["horizon"]), "without": round(float(r["without"]), 2),
+                     "with": round(float(r["with_central"]), 2), "prevented": round(float(r["prevented"]), 2)}
+                    for r in g],
     }
     if delayed is not None:
         d["cases_prevented_if_delayed_1w"] = round(delayed, 2)
@@ -277,8 +291,11 @@ def simulate(engine, date, deployments: dict | None, scenario=None, delay_weeks:
     if compare_delay and dep:
         late = _counterfactual(engine, date, dep, scenario, delay_weeks + 1).groupby("ward_id")["prevented"].sum()
     rc = recent_cases(engine, date)
+    groups: dict[str, list] = {}
+    for r in df.to_dict("records"):
+        groups.setdefault(r["ward_id"], []).append(r)
     out = {}
-    for w, g in df.groupby("ward_id", sort=False):
+    for w, g in groups.items():
         a, b = dep.get(w, (0, 0))
         out[w] = _sim_dict(a, b, g, rc.get(w, 0.0), float(late[w]) if late is not None and w in dep else None)
         out[w].update(economics(out[w], costs))

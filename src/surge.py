@@ -13,10 +13,12 @@ For one forecast week:
    time, to the ward *in the same city* that would have the lowest bed
    utilisation after receiving that patient (nearest ward breaks ties). Patients
    never cross city pools.
-4. Officers can give each city a few *floating* (reserve) beds that belong to no
+4. Emergency bedding: up to a set share of a ward's beds can be added as mattresses or cots
+   between beds and in corridors, for that ward's own patients, after transfers.
+5. Officers can give each city a few *floating* (reserve) beds that belong to no
    ward. They are used only after transfers, for patients no existing bed in the
    city can take, and open at the ward where those patients are.
-5. Overflow left after that is reported as unresolved and flagged for
+6. Overflow left after that is reported as unresolved and flagged for
    escalation (more field beds or inter-city referral).
 
 Deterministic, pure numpy/pandas, no network.
@@ -99,12 +101,18 @@ def parse_city_counts(text: str | None, cities) -> dict:
 
 
 def route(fc: pd.DataFrame, capacity: pd.Series, scale: float = 1.0, basis: str = "expected",
-          positions: dict | None = None, max_util: float = 1.0, floating=None) -> dict:
+          positions: dict | None = None, max_util: float = 1.0, floating=None, bedding: float = 0.0) -> dict:
     """fc columns: ward_id, city, tier, pred, hi.  Returns wards, transfers and city summaries.
 
     floating: reserve ("floating") beds per city that are not tied to a ward (field cots, a mobile
     team). They are used only after transfers, for patients the city's existing beds can't take,
-    and are opened at the ward where those patients are."""
+    and are opened at the ward where those patients are.
+
+    bedding: emergency bedding, 0-0.5. In a surge, hospitals put mattresses or cots in the gaps
+    between beds and in corridors. Each ward can take up to round(capacity x bedding) extra patients
+    this way, for its own patients only. Used after transfers (a real bed elsewhere is better than a
+    floor bed) and before the city's reserve beds."""
+    bedding = float(min(max(bedding, 0.0), 0.5))
     fc = fc.reset_index(drop=True).copy()
     cases = fc["hi"] if basis == "upper" else fc["pred"]
     fc["required"] = supplies_for(cases)["hospital_beds_required"]
@@ -121,6 +129,8 @@ def route(fc: pd.DataFrame, capacity: pd.Series, scale: float = 1.0, basis: str 
     flows: dict[tuple, int] = {}
     unresolved = dict.fromkeys(fc.ward_id, 0)
     floated = dict.fromkeys(fc.ward_id, 0)
+    bedded = dict.fromkeys(fc.ward_id, 0)
+    bed_cap = {w: int(v) for w, v in zip(fc.ward_id, np.floor(fc["capacity"].to_numpy() * bedding + 0.5))}
     pools = floating_pools(floating, list(dict.fromkeys(fc.city)))
     pool_used = dict.fromkeys(pools, 0)
 
@@ -150,6 +160,12 @@ def route(fc: pd.DataFrame, capacity: pd.Series, scale: float = 1.0, basis: str 
                 recv[best] += 1
                 sent[s.ward_id] += 1
                 flows[(s.ward_id, best)] = flows.get((s.ward_id, best), 0) + 1
+        # then emergency bedding inside the patient's own ward (mattresses between beds, corridors)
+        for s in senders.itertuples():
+            take = min(unresolved[s.ward_id], bed_cap[s.ward_id])
+            if take:
+                bedded[s.ward_id] += take
+                unresolved[s.ward_id] -= take
         # last resort before escalation: open the city's floating beds where the unplaced patients are
         left = pools[city]
         for s in senders.itertuples():
@@ -163,13 +179,16 @@ def route(fc: pd.DataFrame, capacity: pd.Series, scale: float = 1.0, basis: str 
     wards = []
     for r in fc.itertuples():
         occupied = occ[r.ward_id]
-        status = ("unresolved" if unresolved[r.ward_id] else "floating" if floated[r.ward_id]
+        status = ("unresolved" if unresolved[r.ward_id] else "crowded" if bedded[r.ward_id]
+                  else "floating" if floated[r.ward_id]
                   else "surge" if r.overflow > 0 else "receiving" if recv[r.ward_id] else "ok")
         wards.append({"ward": r.ward_id, "city": r.city, "tier": r.tier, "cases": round(float(cases.iloc[r.Index]), 2),
                       "required": int(r.required), "capacity": int(r.capacity),
                       "net": int(r.capacity - r.required),           # + spare beds, - local deficit
                       "local": int(r.local), "sent": sent[r.ward_id], "received": recv[r.ward_id],
                       "floating": floated[r.ward_id],                # reserve beds opened here
+                      "emergency": bedded[r.ward_id],                # patients on emergency floor beds here
+                      "emergency_cap": bed_cap[r.ward_id],
                       "unresolved": unresolved[r.ward_id], "occupied": int(occupied),
                       "util_before": round(r.required / r.capacity, 3) if r.capacity else None,
                       "util_after": round(occupied / r.capacity, 3) if r.capacity else None,
@@ -192,14 +211,16 @@ def route(fc: pd.DataFrame, capacity: pd.Series, scale: float = 1.0, basis: str 
                        "surge_wards": int((g.required > g.capacity).sum()),
                        "transferred": int(g.sent.sum()), "unresolved": unr,
                        "floating_pool": pools[city], "floating_used": pool_used[city],
+                       "emergency_used": int(g.emergency.sum()),
                        "status": "escalate" if unr else ("strained" if req > 0.85 * cap else "ok")})
 
     tot_cap, tot_req = int(wdf.capacity.sum()), int(wdf.required.sum())
-    return {"basis": basis, "scale": scale, "max_util": max_util, "wards": wards, "transfers": transfers,
+    return {"basis": basis, "scale": scale, "max_util": max_util, "bedding": bedding, "wards": wards, "transfers": transfers,
             "cities": cities,
             "totals": {"capacity": tot_cap, "required": tot_req, "transferred": int(wdf.sent.sum()),
                        "unresolved": int(wdf.unresolved.sum()), "surge_wards": int((wdf.required > wdf.capacity).sum()),
                        "floating_pool": sum(pools.values()), "floating_used": sum(pool_used.values()),
+                       "emergency_used": int(wdf.emergency.sum()),
                        "util_before": round(tot_req / tot_cap, 3) if tot_cap else None},
             "beds_per_case": SUPPLY_RATIOS["hospital_beds_required"],
             "capacity_rule": f"p{int(CAPACITY_QUANTILE * 100)} of weekly beds needed, 2016-2023, min {MIN_CAPACITY}"}

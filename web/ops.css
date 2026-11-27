@@ -133,3 +133,34 @@ b.purple{color:#C4B5FD}
 .ops-resetall{position:absolute;top:14px;right:16px;font-size:12px;padding:7px 12px}
 #opsHospReset{display:flex;justify-content:flex-end;margin-bottom:-6px}
 #opsHospReset:empty{display:none}
+
+/* saline outlook + supply backtest */
+.ops-lvl{display:inline-block;font-size:11px;font-weight:700;border:1px solid;border-radius:999px;padding:3px 10px;vertical-align:middle;margin-left:6px}
+.ops-salhead{margin:10px 0 4px;font-size:15px;line-height:1.5}
+.ops-saltbl{max-height:none}
+.ops-table tr.ops-cur td{background:rgba(34,211,238,.06)}
+.ops-rec{margin:12px 0;border-radius:14px;padding:12px 16px;border:1px solid rgba(250,204,21,.45);background:rgba(250,204,21,.07)}
+.ops-rec.surge{border-color:rgba(244,63,94,.55);background:rgba(244,63,94,.08)}
+.ops-rec ol{margin:6px 0 10px 18px;padding:0;line-height:1.6}
+.ops-salctl{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;margin-top:12px;align-items:end}
+.ops-salnums{display:flex;gap:12px;flex-wrap:wrap}
+.ops-salnums .ops-num input{width:120px}
+.ops-orsline{margin:10px 0 2px;color:#5EEAD4}
+.ops-orsline:empty{display:none}
+.ops-med{display:block;margin-top:8px;color:#C4B5FD;line-height:1.5}
+.ops-orskpi .ops-orsic{font:800 13px/1 "Space Grotesk",Inter,sans-serif;color:#5EEAD4;border:2px solid #5EEAD4;border-radius:12px;padding:12px 8px}
+.ops-bt .ops-table td{white-space:normal}
+.ops-table tr.ops-best td{background:rgba(34,211,238,.08)}
+.ops-bestb{font-size:10px;font-weight:800;color:#070B16;background:#22D3EE;border-radius:999px;padding:2px 7px;margin-left:4px}
+.ops-btsum{margin:12px 0 4px;line-height:1.55}
+@media (max-width:900px){.ops-salctl{grid-template-columns:1fr}}
+
+/* emergency bedding */
+.ops-hospctl{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:14px;align-items:center}
+.ops-st.crowded{color:#FCD34D;border-color:rgba(245,158,11,.6);background:rgba(245,158,11,.1)}
+b.amber{color:#FCD34D}
+.ops-floor rect{fill:#F59E0B}
+.ops-floor text{fill:#1C1203;font-size:11px;font-weight:800}
+.ops-escbtns{display:flex;gap:8px;flex-wrap:wrap}
+.ops-bedfix{border-color:rgba(245,158,11,.6);color:#FEF3C7;background:rgba(245,158,11,.14)}
+@media (max-width:900px){.ops-hospctl{grid-template-columns:1fr}}
