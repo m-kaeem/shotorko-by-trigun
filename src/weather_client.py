@@ -10,6 +10,7 @@ Cost controls
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime
 import json
 import time
 from datetime import date
@@ -45,18 +46,38 @@ def api_usage_today() -> dict:
         return {"network_calls": 0, "cache_hits": 0}
 
 
+LAST = {"source": None, "fetched_at": None}   # where the last live weather came from (shown to users)
+
+
+def _used(path, source: str) -> None:
+    try:
+        LAST.update(source=source, fetched_at=datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="minutes"))
+    except OSError:
+        LAST.update(source=source, fetched_at=None)
+
+
+def freshness() -> dict:
+    """{"source": network|cache|offline_cache|stale_cache, "fetched_at": ISO time, "age_hours": float}"""
+    out = dict(LAST)
+    if out["fetched_at"]:
+        out["age_hours"] = round((datetime.now() - datetime.fromisoformat(out["fetched_at"])).total_seconds() / 3600, 1)
+    return out
+
+
 def _cached_get(url: str, params: dict) -> dict:
     C.CACHE_DIR.mkdir(exist_ok=True)
     key = hashlib.sha1((url + json.dumps(params, sort_keys=True)).encode()).hexdigest()[:16]
     path = C.CACHE_DIR / f"openmeteo_{key}.json"
     if path.exists() and (time.time() - path.stat().st_mtime) < CACHE_TTL_HOURS * 3600:
         _bump_counter("cache_hits")
+        _used(path, "cache")
         return json.loads(path.read_text())
     # offline (forced, or the quick probe failed): never wait on HTTP timeouts; use any cached copy or give up fast
     from .offline import internet_ok
     if not internet_ok():
         if path.exists():
             _bump_counter("cache_hits")
+            _used(path, "offline_cache")
             return json.loads(path.read_text())
         raise RuntimeError("offline: no internet and no cached weather; showing replay mode instead")
     last_err = None
@@ -67,11 +88,13 @@ def _cached_get(url: str, params: dict) -> dict:
             _bump_counter("network_calls")
             payload = r.json()
             path.write_text(json.dumps(payload))
+            _used(path, "network")
             return payload
         except Exception as e:  # network down, rate limit, etc.
             last_err = e
             time.sleep(1.5 * (attempt + 1))
     if path.exists():   # stale cache is better than nothing
+        _used(path, "stale_cache")
         return json.loads(path.read_text())
     raise RuntimeError(f"Open-Meteo unavailable: {last_err}")
 

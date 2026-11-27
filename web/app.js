@@ -81,6 +81,19 @@
   }
 
   // ------------------------------------------------------------------ static controls
+  // data freshness (Requirement 5): in live mode, say where the weather came from and how old it is
+  function renderFreshness() {
+    const el = $("#wxFresh"); if (!el) return;
+    const w = S.fc && S.fc.weather;
+    if (S.mode !== "live" || !w || !w.fetched_at) { el.hidden = true; return; }
+    const d = new Date(w.fetched_at);
+    const when = `${fmtDate(w.fetched_at.slice(0, 10))} ${loc(String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"))}`;
+    const age = w.age_hours < 1 ? t("wxJustNow") : t("wxHoursAgo")(loc(w.age_hours < 10 ? w.age_hours.toFixed(1) : Math.round(w.age_hours)));
+    el.className = "wx-fresh " + (w.source === "network" || w.source === "cache" ? "ok" : "stale");
+    el.textContent = t("wxFresh")({ when, age, src: (t("wxSrc") || {})[w.source] || w.source });
+    el.hidden = false;
+  }
+
   // Phase 2 operations strip: one card per module, each opening its own page
   function renderOps(hiCount) {
     const el = $("#ops"); if (!el) return;
@@ -334,6 +347,7 @@
     buildHorizons();
     // timeline label + badge
     if (S.mode === "replay") updateCalLabel(); else $("#dateLabel").textContent = fmtDate(S.fc.ref_date, true);
+    renderFreshness();
     const b = $("#sampleBadge");
     if (S.mode === "live") { b.className = "badge live"; b.textContent = t("liveBadge"); }
     else if (S.fc.out_of_sample) { b.className = "badge oos"; b.textContent = "● " + t("oos"); }

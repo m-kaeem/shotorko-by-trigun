@@ -68,7 +68,7 @@ def _scenario(rain: float, temp: float, hum: float) -> Scenario:
 
 
 # ------------------------------------------------------------------ live weather (cached)
-_LIVE = {"raw": None, "ref": None, "weekly": None, "at": 0.0}
+_LIVE = {"raw": None, "ref": None, "weekly": None, "at": 0.0, "fresh": None}
 
 
 def _live():
@@ -76,7 +76,8 @@ def _live():
     if _LIVE["raw"] is None or time.time() - _LIVE["at"] > CACHE_TTL_HOURS * 3600:
         weekly = to_weekly(fetch_city_weather())
         raw, ref = build_live_raw(ENGINE, weekly)
-        _LIVE.update(raw=raw, ref=ref, weekly=weekly, at=time.time())
+        from .weather_client import freshness
+        _LIVE.update(raw=raw, ref=ref, weekly=weekly, at=time.time(), fresh=freshness())
     return _LIVE["raw"], _LIVE["ref"]
 
 
@@ -123,7 +124,8 @@ def _forecast_cached(date: str, rain: float, temp: float, hum: float, mode: str)
     targets = [pd.Timestamp(t).strftime("%Y-%m-%d") for t in sorted(fc.target_date.unique())]
     return {"ref_date": ref.strftime("%Y-%m-%d"), "targets": targets, "mode": mode,
             "out_of_sample": bool(ref + pd.Timedelta(weeks=2) > pd.Timestamp(C.VAL_END)),
-            "scenario": {"rain": rain, "temp": temp, "hum": hum}, "latency_ms": round(latency, 1), "wards": wards}
+            "scenario": {"rain": rain, "temp": temp, "hum": hum}, "latency_ms": round(latency, 1), "wards": wards,
+            "weather": _LIVE.get("fresh") if mode == "live" else None}
 
 
 # ------------------------------------------------------------------ endpoints

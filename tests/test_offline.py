@@ -96,6 +96,9 @@ def test_dispatch_every_channel(client, lang):
 def test_live_weather_degrades_without_500(client):
     r = client.get("/api/forecast", params={"mode": "live"})
     assert r.status_code in (200, 503)   # cached weather, or a clean "unavailable" that the UI turns into replay
+    if r.status_code == 200:              # offline it can only be a saved copy, and the answer must say so and how old it is
+        w = r.json()["weather"]
+        assert w["source"] in ("offline_cache", "cache") and w["fetched_at"] and w["age_hours"] >= 0
 
 
 def test_sms_queue_never_touches_the_network(client):
