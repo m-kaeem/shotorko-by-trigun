@@ -154,3 +154,13 @@ b.purple{color:#C4B5FD}
 .ops-bestb{font-size:10px;font-weight:800;color:#070B16;background:#22D3EE;border-radius:999px;padding:2px 7px;margin-left:4px}
 .ops-btsum{margin:12px 0 4px;line-height:1.55}
 @media (max-width:900px){.ops-salctl{grid-template-columns:1fr}}
+
+/* emergency bedding */
+.ops-hospctl{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:14px;align-items:center}
+.ops-st.crowded{color:#FCD34D;border-color:rgba(245,158,11,.6);background:rgba(245,158,11,.1)}
+b.amber{color:#FCD34D}
+.ops-floor rect{fill:#F59E0B}
+.ops-floor text{fill:#1C1203;font-size:11px;font-weight:800}
+.ops-escbtns{display:flex;gap:8px;flex-wrap:wrap}
+.ops-bedfix{border-color:rgba(245,158,11,.6);color:#FEF3C7;background:rgba(245,158,11,.14)}
+@media (max-width:900px){.ops-hospctl{grid-template-columns:1fr}}

@@ -8,7 +8,7 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const ITEMS = ["saline_bags_needed", "diagnostic_kits_needed", "hospital_beds_required"];
   const CITIES = ["Dhaka North", "Dhaka South", "Chattogram", "Gazipur", "Narayanganj"];
-  const ST_COL = { ok: "#22C55E", deficit: "#FACC15", critical: "#F43F5E", surge: "#FB923C", receiving: "#22D3EE", floating: "#A78BFA", unresolved: "#F43F5E" };
+  const ST_COL = { ok: "#22C55E", deficit: "#FACC15", critical: "#F43F5E", surge: "#FB923C", receiving: "#22D3EE", floating: "#A78BFA", crowded: "#F59E0B", unresolved: "#F43F5E" };
 
   // ------------------------------------------------------------------ strings
   const STR = {
@@ -23,6 +23,9 @@
       life: "Minimum for every ward", lifeHelp: "guaranteed share of each supply before priority sharing (0% = off)",
       real: "Or type what's in the warehouse", realNote: "Real counts replace the stock slider for that item.", clear: "Clear",
       reset: "Reset", resetAll: "Reset all", resetTip: "Back to the default setting", clearReserve: "Clear reserve beds",
+      bed: "Emergency bedding", bedHelp: "extra mattresses or cots between beds and in corridors, as a share of each ward's beds (for its own patients)",
+      bedNote: "Used after patients are moved to empty real beds in the city, and before reserve beds. It's crowded, so it's a last resort.",
+      onFloor: "on floor beds", useBedding: "Use emergency bedding (25%)",
       salTitle: "Saline outlook", salSub: "From our own forecast. IV saline stock isn't public, so this works without it.",
       lvl: { normal: "Normal", high: "High", surge: "Surge alarm" },
       salHead: (w, n, x, p) => `Week of ${w} needs ${n} IV saline bags: ${x}× a busy week, more than ${p}% of weeks since 2016.`,
@@ -70,9 +73,9 @@
       openReserve: (n) => `Open ${loc(n)} reserve bed${n === 1 ? "" : "s"}`, reserveHelp: "Floating beds that belong to no ward (field cots, a mobile team). Used only after transfers, where the patients are.",
       flowTitle: "Transfer map", noTransfers: "No transfers needed in this city this week.",
       tCols: ["From", "To", "Patients", "Distance"],
-      wCols: ["Ward", "Beds needed", "Capacity", "Net", "Sent", "Received", "Reserve", "Use after"],
-      wStatus: { ok: "OK", surge: "Surge", receiving: "Receiving", floating: "Reserve bed opened", unresolved: "Over city capacity" },
-      legend: { surge: "Sending overflow", receiving: "Receiving", floating: "Reserve bed opened", ok: "Within capacity", unresolved: "Unplaced patients" },
+      wCols: ["Ward", "Beds needed", "Capacity", "Net", "Sent", "Received", "Floor beds", "Reserve", "Use after"],
+      wStatus: { ok: "OK", surge: "Surge", receiving: "Receiving", crowded: "Crowded (floor beds)", floating: "Reserve bed opened", unresolved: "Over city capacity" },
+      legend: { surge: "Sending overflow", receiving: "Receiving", crowded: "Floor beds in use", floating: "Reserve bed opened", ok: "Within capacity", unresolved: "Unplaced patients" },
       allCities: "All cities", target: "Target week", offline: "Runs fully offline", km: "km",
     },
     bn: {
@@ -86,6 +89,9 @@
       life: "প্রতিটি ওয়ার্ডের ন্যূনতম", lifeHelp: "অগ্রাধিকার অনুযায়ী ভাগের আগে প্রতিটি জিনিসের নিশ্চিত অংশ (০% = বন্ধ)",
       real: "অথবা গুদামে আসলে কত আছে লিখুন", realNote: "আসল সংখ্যা দিলে ওই জিনিসের জন্য স্টক স্লাইডার আর লাগবে না।", clear: "মুছুন",
       reset: "রিসেট", resetAll: "সব রিসেট", resetTip: "ডিফল্ট সেটিংয়ে ফিরুন", clearReserve: "সংরক্ষিত বেড মুছুন",
+      bed: "জরুরি বিছানা", bedHelp: "বেডের ফাঁকে ও করিডোরে বাড়তি তোষক বা খাট, প্রতিটি ওয়ার্ডের বেডের অংশ হিসেবে (নিজের রোগীদের জন্য)",
+      bedNote: "শহরের খালি আসল বেডে রোগী পাঠানোর পরে, আর সংরক্ষিত বেডের আগে ব্যবহার হয়। ভিড় হয়, তাই এটা শেষ উপায়।",
+      onFloor: "জন মেঝের বিছানায়", useBedding: "জরুরি বিছানা ব্যবহার করুন (২৫%)",
       salTitle: "স্যালাইনের পূর্বাভাস", salSub: "আমাদের নিজস্ব পূর্বাভাস থেকে। IV স্যালাইনের স্টক প্রকাশ্য নয়, তাই এটা স্টক ছাড়াই কাজ করে।",
       lvl: { normal: "স্বাভাবিক", high: "বেশি", surge: "সতর্কবার্তা" },
       salHead: (w, n, x, p) => `${w} সপ্তাহে ${n}টি IV স্যালাইন লাগবে: ব্যস্ত সপ্তাহের ${x} গুণ, ২০১৬ থেকে ${p}% সপ্তাহের চেয়ে বেশি।`,
@@ -133,17 +139,17 @@
       openReserve: (n) => `${loc(n)}টি সংরক্ষিত বেড খুলুন`, reserveHelp: "কোনো ওয়ার্ডের নয় এমন ভাসমান বেড (অস্থায়ী খাট, মোবাইল দল)। স্থানান্তরের পরে, রোগী যেখানে আছে সেখানেই ব্যবহার হয়।",
       flowTitle: "স্থানান্তর ম্যাপ", noTransfers: "এই সপ্তাহে এই শহরে স্থানান্তর লাগবে না।",
       tCols: ["থেকে", "যেখানে", "রোগী", "দূরত্ব"],
-      wCols: ["ওয়ার্ড", "বেড দরকার", "ক্ষমতা", "নিট", "পাঠানো", "গ্রহণ", "সংরক্ষিত", "পরে ব্যবহার"],
-      wStatus: { ok: "ঠিক আছে", surge: "চাপ", receiving: "গ্রহণ করছে", floating: "সংরক্ষিত বেড খোলা", unresolved: "শহরের ক্ষমতার বাইরে" },
-      legend: { surge: "বাড়তি রোগী পাঠাচ্ছে", receiving: "গ্রহণ করছে", floating: "সংরক্ষিত বেড খোলা", ok: "ক্ষমতার মধ্যে", unresolved: "জায়গা হয়নি" },
+      wCols: ["ওয়ার্ড", "বেড দরকার", "ক্ষমতা", "নিট", "পাঠানো", "গ্রহণ", "মেঝের বিছানা", "সংরক্ষিত", "পরে ব্যবহার"],
+      wStatus: { ok: "ঠিক আছে", surge: "চাপ", receiving: "গ্রহণ করছে", crowded: "ভিড় (মেঝের বিছানা)", floating: "সংরক্ষিত বেড খোলা", unresolved: "শহরের ক্ষমতার বাইরে" },
+      legend: { surge: "বাড়তি রোগী পাঠাচ্ছে", receiving: "গ্রহণ করছে", crowded: "মেঝের বিছানা ব্যবহার", floating: "সংরক্ষিত বেড খোলা", ok: "ক্ষমতার মধ্যে", unresolved: "জায়গা হয়নি" },
       allCities: "সব শহর", target: "লক্ষ্য সপ্তাহ", offline: "সম্পূর্ণ অফলাইনে চলে", km: "কিমি",
     },
   };
   // register the nav label so app.js's applyLang() can fill it
   Object.entries(STR).forEach(([l, o]) => { if (window.I18N && window.I18N[l]) window.I18N[l].tabOps = o.tabOps; });
 
-  const DEF = { stock: 0.6, crews: 60, cap: 1.0, life: 0, basis: "expected", policy: "weighted", ors: 0, lead: 7, packets: "" };   // what Reset goes back to
-  const O = { stock: 0.6, crews: 60, cap: 1.0, float: {}, life: 0, ors: 0, lead: 7, packets: "", sal: null, bt: null, real: { saline: "", kits: "", beds: "" }, basis: "expected", policy: "weighted", city: null, alloc: null, surge: null, prevStatus: {}, built: false, seq: 0 };
+  const DEF = { stock: 0.6, crews: 60, cap: 1.0, life: 0, basis: "expected", policy: "weighted", ors: 0, lead: 7, packets: "", bed: 0 };   // what Reset goes back to
+  const O = { stock: 0.6, crews: 60, cap: 1.0, float: {}, life: 0, bed: 0, ors: 0, lead: 7, packets: "", sal: null, bt: null, real: { saline: "", kits: "", beds: "" }, basis: "expected", policy: "weighted", city: null, alloc: null, surge: null, prevStatus: {}, built: false, seq: 0 };
   const SK = () => window.SK;
   const L = () => STR[SK().S.lang] || STR.en;
   const loc = (x) => SK().loc(x);
@@ -208,6 +214,7 @@
         <p class="ops-btsum" id="opsBtSum"></p><small class="ops-muted">${T.btNote}</small></div>
       <h2 class="h-font ops-h2">${T.surgeTitle}</h2>
       <p class="ops-muted ops-p">${T.surgeSub}<br><small>${T.capRule}</small></p>
+      <div class="ops-hospctl">${slider("opsBed", T.bed, T.bedHelp, 0, 50, 5, Math.round(O.bed * 100), "%", Math.round(DEF.bed * 100))}<small class="ops-muted">${T.bedNote}</small></div>
       <div id="opsHospReset"></div>
       <div class="ops-cities" id="opsCities"></div>
       <div id="opsEsc"></div>
@@ -238,6 +245,7 @@
       if (inp.id === "opsCap") O.cap = v / 100;
       if (inp.id === "opsLife") O.life = v / 100;
       if (inp.id === "opsOrs") O.ors = v / 100;
+      if (inp.id === "opsBed") O.bed = v / 100;
       updateResets(); go();
     }));
     $$("#tab-ops .ops-reset[data-reset]").forEach((b) => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); setSlider(b.dataset.reset, +b.dataset.def); });
@@ -273,7 +281,7 @@
   function updateResets() {
     $$("#tab-ops .ops-reset[data-reset]").forEach((b) => { const inp = $("#" + b.dataset.reset); b.hidden = !inp || +inp.value === +b.dataset.def; });
     const changed = O.stock !== DEF.stock || O.crews !== DEF.crews || O.cap !== DEF.cap || O.life !== DEF.life
-      || O.ors !== DEF.ors || O.lead !== DEF.lead || O.packets !== DEF.packets
+      || O.ors !== DEF.ors || O.lead !== DEF.lead || O.packets !== DEF.packets || O.bed !== DEF.bed
       || O.basis !== DEF.basis || O.policy !== DEF.policy || anyReal() || anyReserve();
     const all = $("#opsResetAll"); if (all) all.hidden = !changed;
     const hr = $("#opsHospReset");
@@ -296,7 +304,7 @@
       const [a, s, sal, bt] = await Promise.all([
         SK().api("/api/ops/allocate", { ...p, stock: O.stock, crews: O.crews, policy: O.policy, min_share: O.life || undefined, ors: O.ors || undefined,
           saline_stock: O.real.saline || undefined, kits_stock: O.real.kits || undefined, beds_stock: O.real.beds || undefined }),
-        SK().api("/api/ops/surge", { ...p, cap_scale: O.cap, floating: floatParam() }),
+        SK().api("/api/ops/surge", { ...p, cap_scale: O.cap, floating: floatParam(), bedding: O.bed || undefined }),
         SK().api("/api/ops/saline", { date: p.date, mode: p.mode, rain: p.rain, temp: p.temp, hum: p.hum, lead_days: O.lead,
           ors: O.ors || undefined, packets: O.packets || undefined }),
         SK().api("/api/ops/supply-backtest", { stock: O.stock, h: p.h }),
@@ -386,7 +394,7 @@
         <span class="eyebrow">${SK().cityName(x.city)}</span><span class="ops-cst ${x.status}">${T.cityStatus[x.status]}</span>
         <div class="ops-gauge"><i class="b" style="width:${Math.min(100, ub * 100)}%"></i><i class="a" style="width:${Math.min(100, ua * 100)}%"></i>${ub > 1 ? `<em style="left:${100 / ub}%"></em>` : ""}</div>
         <div class="ops-cnums"><span><b>${pct(ub)}</b>${T.before}</span><span><b>${pct(ua)}</b>${T.after}</span></div>
-        <small>${loc(x.required)} / ${loc(x.capacity)} ${T.items.hospital_beds_required.toLowerCase()} · <b>${loc(x.headroom)}</b> ${T.headroom}${x.transferred ? ` · <b>${loc(x.transferred)}</b> ${T.moved}` : ""}${x.unresolved ? ` · <b class="red">${loc(x.unresolved)}</b> ${T.unresolvedN}` : ""}</small>
+        <small>${loc(x.required)} / ${loc(x.capacity)} ${T.items.hospital_beds_required.toLowerCase()} · <b>${loc(x.headroom)}</b> ${T.headroom}${x.transferred ? ` · <b>${loc(x.transferred)}</b> ${T.moved}` : ""}${x.emergency_used ? ` · <b class="amber">${loc(x.emergency_used)}</b> ${T.onFloor}` : ""}${x.unresolved ? ` · <b class="red">${loc(x.unresolved)}</b> ${T.unresolvedN}` : ""}</small>
         <div class="ops-reserve" title="${T.reserveHelp}"><span>${T.reserve}</span>
           <button class="ops-rb" data-rc="${x.city}" data-d="-1" aria-label="${T.reserve} −">−</button><b>${loc(x.floating_pool || 0)}</b><button class="ops-rb" data-rc="${x.city}" data-d="1" aria-label="${T.reserve} +">+</button>
           ${x.floating_pool ? `<small>${T.reserveUsed(loc(x.floating_used), loc(x.floating_pool))}</small>` : ""}</div></div>`;
@@ -403,8 +411,9 @@
     });
     const esc = s.cities.filter((x) => x.unresolved);
     $("#opsEsc").innerHTML = esc.length ? `<div class="action alert" style="flex-direction:column;gap:6px">${esc.map((x) => `<div class="ops-escrow"><span>⚠ ${T.escalate(SK().cityName(x.city), x.unresolved)}</span>
-      <button class="btn ops-fix" data-fc="${x.city}" data-n="${x.unresolved}">${T.openReserve(x.unresolved)}</button></div>`).join("")}</div>` : "";
-    $$("#opsEsc .ops-fix").forEach((b) => b.onclick = () => {
+      <span class="ops-escbtns">${O.bed < 0.25 ? `<button class="btn ops-fix ops-bedfix">${T.useBedding}</button>` : ""}<button class="btn ops-fix" data-fc="${x.city}" data-n="${x.unresolved}">${T.openReserve(x.unresolved)}</button></span></div>`).join("")}</div>` : "";
+    $$("#opsEsc .ops-bedfix").forEach((b) => b.onclick = () => setSlider("opsBed", 25));
+    $$("#opsEsc .ops-fix[data-fc]").forEach((b) => b.onclick = () => {
       const c = b.dataset.fc; O.float[c] = (O.float[c] || 0) + +b.dataset.n; O.city = c; load();
     });
     $("#opsCityChips").innerHTML = s.cities.map((x) => `<button class="chip" aria-pressed="${x.city === O.city}" data-city="${x.city}">${SK().cityName(x.city)}</button>`).join("");
@@ -420,6 +429,7 @@
     $("#opsWardTable").innerHTML = `<thead><tr>${T.wCols.map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${ws.map((w) => `
       <tr><td><b>${wshort(w.ward)}</b> <span class="ops-st ${w.status}">${T.wStatus[w.status]}</span></td><td>${loc(w.required)}</td><td>${loc(w.capacity)}</td>
       <td class="${w.net < 0 ? "red" : "green"}"><b>${w.net > 0 ? "+" : ""}${loc(w.net)}</b></td><td>${w.sent ? loc(w.sent) : "–"}</td><td>${w.received ? loc(w.received) : "–"}</td>
+      <td>${w.emergency ? `<b class="amber">+${loc(w.emergency)}</b>` : "–"}</td>
       <td>${w.floating ? `<b class="purple">+${loc(w.floating)}</b>` : "–"}</td>
       <td>${w.util_after != null ? pct(w.util_after) : "–"}</td></tr>`).join("")}</tbody>`;
   }
@@ -496,6 +506,7 @@
         <circle cx="${x}" cy="${y}" r="${rc}" fill="none" stroke="#3A4A6E" stroke-dasharray="3 3"/>
         <circle cx="${x}" cy="${y}" r="${rr}" fill="${col}" fill-opacity=".85" ${w.status === "unresolved" ? 'class="ops-pulse"' : ""}/>
         <text x="${x}" y="${y + 4}" text-anchor="middle" class="ops-nlabel">${loc(SK().ward(w.ward).n)}</text>
+        ${w.emergency ? `<g class="ops-floor"><rect x="${x - rr - 26}" y="${y + rr - 8}" width="30" height="18" rx="4"/><text x="${x - rr - 11}" y="${y + rr + 5}" text-anchor="middle">+${loc(w.emergency)}</text></g>` : ""}
         ${w.floating ? `<g class="ops-float"><rect x="${x + rr - 4}" y="${y - rr - 10}" width="30" height="18" rx="9"/><text x="${x + rr + 11}" y="${y - rr + 3}" text-anchor="middle">+${loc(w.floating)}</text></g>` : ""}</g>`;
     }).join("");
     $("#opsFlow").innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="ops-svg" role="img" aria-label="${T.flowTitle}">
@@ -528,8 +539,10 @@
     s.transfers.forEach((x) => rows.push([x.city, x.from, x.to, x.patients, x.km, s.target_date]));
     const fl = s.wards.filter((w) => w.floating);
     if (fl.length) { rows.push([]); rows.push(["city", "ward_with_reserve_beds", "reserve_beds_opened"]); fl.forEach((w) => rows.push([w.city, w.ward, w.floating])); }
-    rows.push([]); rows.push(["city", "capacity", "beds_needed", "util_before", "util_after", "spare_beds_left", "moved", "reserve_beds", "reserve_used", "unplaced", "status"]);
-    s.cities.forEach((x) => rows.push([x.city, x.capacity, x.required, x.util_before, x.util_after, x.headroom, x.transferred, x.floating_pool, x.floating_used, x.unresolved, x.status]));
+    const em = s.wards.filter((w) => w.emergency);
+    if (em.length) { rows.push([]); rows.push(["city", "ward_with_emergency_bedding", "patients_on_floor_beds"]); em.forEach((w) => rows.push([w.city, w.ward, w.emergency])); }
+    rows.push([]); rows.push(["city", "capacity", "beds_needed", "util_before", "util_after", "spare_beds_left", "moved", "on_floor_beds", "reserve_beds", "reserve_used", "unplaced", "status"]);
+    s.cities.forEach((x) => rows.push([x.city, x.capacity, x.required, x.util_before, x.util_after, x.headroom, x.transferred, x.emergency_used, x.floating_pool, x.floating_used, x.unresolved, x.status]));
     download(`shotorko_bed_transfers_${s.target_date}.csv`, rows);
   }
 
