@@ -1,46 +1,54 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>গাজীপুর ওয়ার্ড ০২: কমিশনার ব্রিফ</title><style>
-:root{--ink:#111827;--ink2:#374151;--mut:#6B7280;--rule:#E5E7EB;--indigo:#0E7490;--paper:#FFFFFF;--cloth:#F3F4F6}
-*{box-sizing:border-box}html,body{margin:0;background:var(--cloth);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI","Nirmala UI","Noto Sans Bengali","Hind Siliguri",sans-serif;font-variant-numeric:tabular-nums}
-.sheet{max-width:780px;margin:24px auto;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:34px 40px 30px}
-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:14px;border-bottom:2px solid var(--indigo)}
-.brand{color:var(--indigo);font-weight:700;font-size:15px}.meta{font-size:13px;color:var(--mut);text-align:right;line-height:1.5}
-h1{font-size:28px;margin:18px 0 4px;line-height:1.1}.sub{color:var(--ink2);font-size:15px;margin:0}
-.tier{display:inline-block;margin-top:10px;padding:3px 11px;border-radius:6px;color:#fff;font-weight:700;font-size:14px}
-.facts{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--rule);border-radius:6px;margin:20px 0}
-.facts div{padding:12px 14px}.facts div+div{border-left:1px solid var(--rule)}
-.facts b{display:block;font-size:26px;line-height:1.1}.facts span{font-size:12.5px;color:var(--mut)}
-h2{font-size:16px;margin:22px 0 8px}
-table{width:100%;border-collapse:collapse;font-size:14.5px}th,td{padding:8px 10px;border-bottom:1px solid var(--rule);text-align:right}
-th:first-child,td:first-child{text-align:left}th{color:var(--mut);font-weight:500;font-size:13px}
-td.short{color:#BE123C;font-weight:700}
-.alert{margin:16px 0;padding:11px 14px;border-radius:6px;font-size:14.5px;line-height:1.5}
-.alert.critical{background:#F6E6E4;border:1px solid #DDA9A6;color:#5E1215}.alert.partial{background:#FBF1DE;border:1px solid #E5C784;color:#5A3D00}
-.alert.none{background:#E7EEE1;border:1px solid #B7CBA9;color:#26401A}
-.action{font-size:15px;line-height:1.55}
-ul{margin:6px 0 0;padding-left:18px;font-size:14px;line-height:1.6}
-.sign{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:34px;font-size:13px;color:var(--mut)}
-.sign div{border-top:1px solid var(--ink2);padding-top:6px}
-footer{margin-top:22px;font-size:11.5px;color:var(--mut);border-top:1px dashed var(--rule);padding-top:8px}
-.print{position:fixed;right:18px;top:18px;background:var(--indigo);color:#fff;border:0;border-radius:6px;padding:9px 14px;font:inherit;font-size:14px;cursor:pointer}
-@media print{html,body{background:#fff}.sheet{border:0;margin:0;max-width:none;padding:0}.print{display:none}@page{size:A4;margin:16mm}}
+<title>গাজীপুর ওয়ার্ড ০২: অফিস আদেশ</title><style>
+:root{--ink:#111;--mut:#555;--rule:#222;--paper:#fff;--cloth:#E9E9E6}
+*{box-sizing:border-box}html,body{margin:0;background:var(--cloth);color:var(--ink)}
+body{font-family:"Book Antiqua","Palatino Linotype",Palatino,Georgia,"Nirmala UI","Noto Serif Bengali","Hind Siliguri",serif;font-variant-numeric:tabular-nums}
+.bn{font-family:"Nirmala UI","Noto Sans Bengali","Hind Siliguri",sans-serif}
+.sheet{width:210mm;min-height:297mm;margin:24px auto;background:var(--paper);box-shadow:0 1px 6px rgba(0,0,0,.18);padding:16mm 18mm 12mm;display:flex;flex-direction:column}
+.lh{display:grid;grid-template-columns:1fr 100px 1fr;align-items:center;gap:14px;text-align:center}
+.lh .bn{font-size:17px;line-height:1.45;font-weight:600}
+.lh .en{font-size:14px;line-height:1.45;font-weight:700;letter-spacing:.02em;text-transform:uppercase;font-family:"Times New Roman",Times,serif}
+.seal{width:98px;height:98px;padding:16px;border-radius:50%;border:2px solid var(--ink);display:grid;place-items:center;text-align:center;position:relative}
+.seal::before{content:"";position:absolute;inset:5px;border-radius:50%;border:1px solid var(--ink)}
+.seal b{font-size:15px;letter-spacing:.06em}.lh .seal small{display:block;font-size:9px;font-weight:600;line-height:1.25;margin-top:3px;white-space:nowrap}
+.ref{display:flex;justify-content:space-between;gap:16px;margin-top:26px;font-size:15px}
+h1{text-align:center;font-size:21px;margin:26px 0 4px;text-decoration:underline;text-underline-offset:4px}
+.subj{margin:14px 0 4px;font-size:15.5px;line-height:1.55}
+.body{font-size:15.5px;line-height:1.65;text-align:justify}
+.body p.lead{text-indent:48px;margin:12px 0}
+ol.paras{list-style:none;margin:0;padding:0}
+ol.paras>li{display:grid;grid-template-columns:44px 1fr;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin:8px 0 2px}
+th,td{border:1px solid var(--rule);padding:5px 9px;text-align:right}
+th:first-child,td:first-child{text-align:left}th{font-weight:700;background:#F4F4F2}
+td.short{font-weight:700;text-decoration:underline}
+ul.plain{margin:4px 0 0;padding-left:20px}
+.sign{align-self:flex-end;text-align:center;margin-top:44px;min-width:250px;font-size:15px;line-height:1.5}
+.sign .line{border-top:1px dotted var(--ink);margin-bottom:4px}
+.dist{margin-top:26px;font-size:15px;line-height:1.55}
+.dist h2{font-size:15.5px;margin:0 0 4px;text-decoration:underline;text-underline-offset:3px}
+.dist ol{margin:0;padding:0;list-style:none}
+.grow{flex:1}
+footer{margin-top:24px;border-top:1.5px solid var(--ink);padding-top:6px;text-align:center;font-size:12px;color:var(--mut);line-height:1.5}
+.print{position:fixed;right:18px;top:18px;background:#1F2937;color:#fff;border:0;border-radius:6px;padding:9px 14px;font:14px system-ui,sans-serif;cursor:pointer}
+@media print{html,body{background:#fff}.sheet{width:auto;min-height:calc(297mm - 24mm);margin:0;box-shadow:none;padding:0}.print{display:none}@page{size:A4;margin:12mm 16mm}}
 </style></head><body>
 <button class="print" onclick="window.print()">প্রিন্ট / PDF</button>
 <main class="sheet">
-<header><div class="brand">Shotorko সতর্ক · ডেঙ্গু ডিসপ্যাচ ব্রিফ</div>
-<div class="meta">পূর্বাভাসের সপ্তাহ ৭ জুলাই ২০২৫<br>সময়সীমা: ৩ সপ্তাহ · অগ্রাধিকার #১৭ · মজুদ ৭০%</div></header>
-<h1>গাজীপুর · ওয়ার্ড ০২</h1>
-<p class="sub">প্রত্যাশিত সপ্তাহ: ২৮ জুলাই ২০২৫</p>
-<span class="tier" style="background:#BE123C">সংকটজনক ঝুঁকি</span>
-<div class="facts"><div><b>১৭</b><span>প্রত্যাশিত রোগী</span></div>
-<div><b>৭–২০</b><span>৮০% পরিসর</span></div>
-<div><b>১</b><span>নির্ধারিত স্প্রে দল</span></div></div>
-<h2>সরবরাহ</h2>
-<table><thead><tr><th>সামগ্রী</th><th>প্রয়োজন</th><th>বরাদ্দ</th><th>ঘাটতি</th><th>পূরণ</th></tr></thead><tbody><tr><td>স্যালাইন ব্যাগ</td><td>৪০</td><td>৩৫</td><td class="short">৫</td><td>৮৭.৫%</td></tr><tr><td>পরীক্ষা কিট</td><td>২০</td><td>১৮</td><td class="short">২</td><td>৯০.০%</td></tr><tr><td>হাসপাতাল শয্যা</td><td>৫</td><td>৪</td><td class="short">১</td><td>৮০.০%</td></tr></tbody></table>
-<div class="alert partial">আংশিক ঘাটতি: সিটি স্টোর থেকে বাড়তি সরবরাহ চান।</div>
-
-<h2>ওয়ার্ড দলের করণীয়</h2><p class="action">এখনই স্প্রে দল পাঠান, জমে থাকা পানি সরান, ক্লিনিক সতর্ক করুন ও শয্যা প্রস্তুত রাখুন।</p>
-<h2>রোগী পাঠান</h2><ul><li>Shaheed Ahsan Ullah Master General Hospital (Tongi)</li><li>Shaheed Tajuddin Ahmad Medical College Hospital</li><li>স্বাস্থ্য বাতায়ন: ১৬২৬৩</li></ul>
-<div class="sign"><div>ওয়ার্ড কমিশনার</div><div>স্বাস্থ্য কর্মকর্তা</div></div>
-<footer>সতর্ক স্থানীয় মডেল থেকে অফলাইনে তৈরি; ইন্টারনেট বা এআই সেবা ব্যবহার হয়নি। সরবরাহ পরিকল্পনার উৎস: engine · 2026-11-27 12:08</footer>
+<header class="lh">
+  <div class="bn">গাজীপুর সিটি কর্পোরেশন<br>স্বাস্থ্য বিভাগ<br>গাজীপুর, বাংলাদেশ</div>
+  <div class="seal" aria-label="দপ্তরের সিল"><div><b>GCC</b><small class="bn">স্বাস্থ্য বিভাগ</small></div></div>
+  <div class="en">Gazipur City Corporation<br>Health Department<br>Gazipur, Bangladesh</div>
+</header>
+<div class="ref"><span>স্মারক নং GCC.HLTH.DNG.২০২৫.০৭.০৭.W০২.H৩</span><span>তারিখ: ৭ জুলাই ২০২৫</span></div>
+<h1>অফিস আদেশ</h1>
+<p class="subj"><b>বিষয়:</b> গাজীপুর ওয়ার্ড ০২-এ ২৮ জুলাই ২০২৫ সপ্তাহের ডেঙ্গু প্রতিরোধ কার্যক্রম।</p>
+<div class="body">
+<p class="lead">সতর্ক ডেঙ্গু পূর্বাভাস অনুযায়ী গাজীপুর সিটি কর্পোরেশন-এর ওয়ার্ড ০২-এ ২৮ জুলাই ২০২৫ সপ্তাহে প্রায় <b>১৭</b> জন ডেঙ্গু রোগী হতে পারে (সম্ভাব্য পরিসর ৭–২০), যা এখন থেকে ৩ সপ্তাহ পরে। ওয়ার্ডের ঝুঁকির মাত্রা <b>সংকটজনক</b> (স্কোর ৭২/১০০); এই দফায় অগ্রাধিকার ক্রম ১৭, আঞ্চলিক মজুদ ৭০%।</p>
+<ol class="paras"><li><span>০২.</span><div>করণীয়: এখনই স্প্রে দল পাঠান, জমে থাকা পানি সরান, ক্লিনিক সতর্ক করুন ও শয্যা প্রস্তুত রাখুন। এই দফায় ওয়ার্ডে ১টি স্প্রে দল নির্ধারণ করা হয়েছে।</div></li><li><span>০৩.</span><div>ওয়ার্ডের সরবরাহ (প্রয়োজন ও বরাদ্দ) নিম্নরূপ:<table><thead><tr><th>সামগ্রী</th><th>প্রয়োজন</th><th>বরাদ্দ</th><th>ঘাটতি</th><th>পূরণ</th></tr></thead><tbody><tr><td>স্যালাইন ব্যাগ</td><td>৪০</td><td>৩৫</td><td class="short">৫</td><td>৮৭.৫%</td></tr><tr><td>পরীক্ষা কিট</td><td>২০</td><td>১৮</td><td class="short">২</td><td>৯০.০%</td></tr><tr><td>হাসপাতাল শয্যা</td><td>৫</td><td>৪</td><td class="short">১</td><td>৮০.০%</td></tr></tbody></table>আংশিক সরবরাহ ঘাটতি রয়েছে। ওয়ার্ড দল সিটি স্টোর থেকে বাড়তি সরবরাহ চাইবে।</div></li><li><span>০৪.</span><div>সন্দেহভাজন ডেঙ্গু রোগীদের পাঠাতে হবে: Shaheed Ahsan Ullah Master General Hospital (Tongi) অথবা Shaheed Tajuddin Ahmad Medical College Hospital। স্বাস্থ্য বাতায়ন: ১৬২৬৩।</div></li><li><span>০৫.</span><div>যথাযথ কর্তৃপক্ষের স্বাক্ষরের পর থেকে এই আদেশ কার্যকর হবে।</div></li></ol>
+</div>
+<div class="sign"><div class="line"></div>(নাম)<br>প্রধান স্বাস্থ্য কর্মকর্তা<br>গাজীপুর সিটি কর্পোরেশন</div>
+<section class="dist"><h2>বিতরণ:</h2><ol><li>০১. ওয়ার্ড কাউন্সিলর, ওয়ার্ড ০২, গাজীপুর সিটি কর্পোরেশন</li><li>০২. ওয়ার্ড স্বাস্থ্য ও মশক নিয়ন্ত্রণ সুপারভাইজার</li><li>০৩. সিটি স্টোর (চিকিৎসা সামগ্রী)</li><li>০৪. নোটিশ বোর্ড</li><li>০৫. অফিস নথি</li></ol></section>
+<div class="grow"></div>
+<footer>সতর্ক স্থানীয় মডেল থেকে অফলাইনে তৈরি; ইন্টারনেট বা এআই সেবা ব্যবহার হয়নি।<br>সরবরাহ পরিকল্পনার উৎস: engine · মুদ্রণ 2026-11-27 17:00</footer>
 </main></body></html>

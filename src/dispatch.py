@@ -1,4 +1,4 @@
-"""Requirement 4: ward-specific dispatch notices (SMS, WhatsApp, printable commissioner brief).
+"""Requirement 4: ward-specific dispatch notices (SMS, WhatsApp, printable office order).
 
 Every notice is built from one ward plan (docs/PHASE2_PLAN_CONTRACT.md) with fixed templates in
 English and Bangla. No LLM and no network: the same plan always gives the same text, so notices
@@ -163,72 +163,124 @@ def whatsapp(plan: dict, lang: str = "en") -> str:
     return "\n".join(lines)
 
 
-# ------------------------------------------------------------------ printable commissioner brief
+# ------------------------------------------------------------------ printable brief (Bangladesh government office-order format)
+CORP = {   # issuing office for each city: (English, Bangla)
+    "Dhaka North": ("Dhaka North City Corporation", "ঢাকা উত্তর সিটি কর্পোরেশন", "Dhaka", "ঢাকা"),
+    "Dhaka South": ("Dhaka South City Corporation", "ঢাকা দক্ষিণ সিটি কর্পোরেশন", "Dhaka", "ঢাকা"),
+    "Chattogram": ("Chattogram City Corporation", "চট্টগ্রাম সিটি কর্পোরেশন", "Chattogram", "চট্টগ্রাম"),
+    "Gazipur": ("Gazipur City Corporation", "গাজীপুর সিটি কর্পোরেশন", "Gazipur", "গাজীপুর"),
+    "Narayanganj": ("Narayanganj City Corporation", "নারায়ণগঞ্জ সিটি কর্পোরেশন", "Narayanganj", "নারায়ণগঞ্জ"),
+}
 BRIEF_CSS = """
-:root{--ink:#111827;--ink2:#374151;--mut:#6B7280;--rule:#E5E7EB;--indigo:#0E7490;--paper:#FFFFFF;--cloth:#F3F4F6}
-*{box-sizing:border-box}html,body{margin:0;background:var(--cloth);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI","Nirmala UI","Noto Sans Bengali","Hind Siliguri",sans-serif;font-variant-numeric:tabular-nums}
-.sheet{max-width:780px;margin:24px auto;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:34px 40px 30px}
-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:14px;border-bottom:2px solid var(--indigo)}
-.brand{color:var(--indigo);font-weight:700;font-size:15px}.meta{font-size:13px;color:var(--mut);text-align:right;line-height:1.5}
-h1{font-size:28px;margin:18px 0 4px;line-height:1.1}.sub{color:var(--ink2);font-size:15px;margin:0}
-.tier{display:inline-block;margin-top:10px;padding:3px 11px;border-radius:6px;color:#fff;font-weight:700;font-size:14px}
-.facts{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--rule);border-radius:6px;margin:20px 0}
-.facts div{padding:12px 14px}.facts div+div{border-left:1px solid var(--rule)}
-.facts b{display:block;font-size:26px;line-height:1.1}.facts span{font-size:12.5px;color:var(--mut)}
-h2{font-size:16px;margin:22px 0 8px}
-table{width:100%;border-collapse:collapse;font-size:14.5px}th,td{padding:8px 10px;border-bottom:1px solid var(--rule);text-align:right}
-th:first-child,td:first-child{text-align:left}th{color:var(--mut);font-weight:500;font-size:13px}
-td.short{color:#BE123C;font-weight:700}
-.alert{margin:16px 0;padding:11px 14px;border-radius:6px;font-size:14.5px;line-height:1.5}
-.alert.critical{background:#F6E6E4;border:1px solid #DDA9A6;color:#5E1215}.alert.partial{background:#FBF1DE;border:1px solid #E5C784;color:#5A3D00}
-.alert.none{background:#E7EEE1;border:1px solid #B7CBA9;color:#26401A}
-.action{font-size:15px;line-height:1.55}
-ul{margin:6px 0 0;padding-left:18px;font-size:14px;line-height:1.6}
-.sign{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:34px;font-size:13px;color:var(--mut)}
-.sign div{border-top:1px solid var(--ink2);padding-top:6px}
-footer{margin-top:22px;font-size:11.5px;color:var(--mut);border-top:1px dashed var(--rule);padding-top:8px}
-.print{position:fixed;right:18px;top:18px;background:var(--indigo);color:#fff;border:0;border-radius:6px;padding:9px 14px;font:inherit;font-size:14px;cursor:pointer}
-@media print{html,body{background:#fff}.sheet{border:0;margin:0;max-width:none;padding:0}.print{display:none}@page{size:A4;margin:16mm}}
+:root{--ink:#111;--mut:#555;--rule:#222;--paper:#fff;--cloth:#E9E9E6}
+*{box-sizing:border-box}html,body{margin:0;background:var(--cloth);color:var(--ink)}
+body{font-family:"Book Antiqua","Palatino Linotype",Palatino,Georgia,"Nirmala UI","Noto Serif Bengali","Hind Siliguri",serif;font-variant-numeric:tabular-nums}
+.bn{font-family:"Nirmala UI","Noto Sans Bengali","Hind Siliguri",sans-serif}
+.sheet{width:210mm;min-height:297mm;margin:24px auto;background:var(--paper);box-shadow:0 1px 6px rgba(0,0,0,.18);padding:16mm 18mm 12mm;display:flex;flex-direction:column}
+.lh{display:grid;grid-template-columns:1fr 100px 1fr;align-items:center;gap:14px;text-align:center}
+.lh .bn{font-size:17px;line-height:1.45;font-weight:600}
+.lh .en{font-size:14px;line-height:1.45;font-weight:700;letter-spacing:.02em;text-transform:uppercase;font-family:"Times New Roman",Times,serif}
+.seal{width:98px;height:98px;padding:16px;border-radius:50%;border:2px solid var(--ink);display:grid;place-items:center;text-align:center;position:relative}
+.seal::before{content:"";position:absolute;inset:5px;border-radius:50%;border:1px solid var(--ink)}
+.seal b{font-size:15px;letter-spacing:.06em}.lh .seal small{display:block;font-size:9px;font-weight:600;line-height:1.25;margin-top:3px;white-space:nowrap}
+.ref{display:flex;justify-content:space-between;gap:16px;margin-top:26px;font-size:15px}
+h1{text-align:center;font-size:21px;margin:26px 0 4px;text-decoration:underline;text-underline-offset:4px}
+.subj{margin:14px 0 4px;font-size:15.5px;line-height:1.55}
+.body{font-size:15.5px;line-height:1.65;text-align:justify}
+.body p.lead{text-indent:48px;margin:12px 0}
+ol.paras{list-style:none;margin:0;padding:0}
+ol.paras>li{display:grid;grid-template-columns:44px 1fr;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin:8px 0 2px}
+th,td{border:1px solid var(--rule);padding:5px 9px;text-align:right}
+th:first-child,td:first-child{text-align:left}th{font-weight:700;background:#F4F4F2}
+td.short{font-weight:700;text-decoration:underline}
+ul.plain{margin:4px 0 0;padding-left:20px}
+.sign{align-self:flex-end;text-align:center;margin-top:44px;min-width:250px;font-size:15px;line-height:1.5}
+.sign .line{border-top:1px dotted var(--ink);margin-bottom:4px}
+.dist{margin-top:26px;font-size:15px;line-height:1.55}
+.dist h2{font-size:15.5px;margin:0 0 4px;text-decoration:underline;text-underline-offset:3px}
+.dist ol{margin:0;padding:0;list-style:none}
+.grow{flex:1}
+footer{margin-top:24px;border-top:1.5px solid var(--ink);padding-top:6px;text-align:center;font-size:12px;color:var(--mut);line-height:1.5}
+.print{position:fixed;right:18px;top:18px;background:#1F2937;color:#fff;border:0;border-radius:6px;padding:9px 14px;font:14px system-ui,sans-serif;cursor:pointer}
+@media print{html,body{background:#fff}.sheet{width:auto;min-height:calc(297mm - 24mm);margin:0;box-shadow:none;padding:0}.print{display:none}@page{size:A4;margin:12mm 16mm}}
 """
-TIER_HEX = {"Low": "#15803D", "Medium": "#A16207", "High": "#C2410C", "Critical": "#BE123C"}   # print-dark versions of the app tier colours
+
+
+def _memo_no(plan: dict, lang: str) -> str:
+    """Reference number in the dotted style of government memos, e.g. DSCC.HLTH.DNG.2025.07.07.W06.H2."""
+    d = pd.Timestamp(plan["date"])
+    s = f"{CITY_CODE.get(plan['city'], 'CC')}.HLTH.DNG.{d.year}.{d.month:02d}.{d.day:02d}.W{_ward_no(plan['ward_id'])}.H{plan['h']}"
+    return s.translate(BN_DIG) if lang == "bn" else s
 
 
 def brief_html(plan: dict, lang: str = "en", standalone_fonts: bool = True) -> str:
+    """One A4 page in the Bangladesh government office-order layout: bilingual letterhead, memo number
+    and date, underlined title, subject, numbered paragraphs, signature block and distribution list."""
     N = notice(plan, lang)
     en = lang == "en"
     e = html.escape
+    lab = (lambda a, b: a if en else b)
+    num = (lambda i: _n(f"{i:02d}", lang) + ".")
+    corp_en, corp_bn, town_en, town_bn = CORP.get(plan["city"], (plan["city"], N["city"], plan["city"], N["city"]))
+    corp = corp_en if en else corp_bn
+
     rows = "".join(
         f"<tr><td>{e(s['label'])}</td><td>{_n(s['required'], lang)}</td><td>{_n(s['allocated'], lang)}</td>"
         f"<td class=\"{'short' if s['deficit'] else ''}\">{_n(s['deficit'], lang)}</td><td>{_n(s['coverage'], lang, 1)}%</td></tr>"
         for s in N["supplies"])
-    lvl = {"none": ("Supplies fully covered at the current regional stock.", "বর্তমান আঞ্চলিক মজুদে সরবরাহ পুরোপুরি মেটানো যাচ্ছে।"),
-           "partial": ("Partial supply deficit: request top-up from the city store.", "আংশিক ঘাটতি: সিটি স্টোর থেকে বাড়তি সরবরাহ চান।"),
-           "critical": ("CRITICAL supply deficit: less than half of at least one item can be supplied. Escalate today.",
-                        "গুরুতর ঘাটতি: অন্তত একটি সামগ্রীর অর্ধেকও দেওয়া যাচ্ছে না। আজই ঊর্ধ্বতনকে জানান।")}
-    overflow = ""
+    lvl = {"none": ("Supplies are fully covered at the current regional stock.", "বর্তমান আঞ্চলিক মজুদে সরবরাহ পুরোপুরি মেটানো যাচ্ছে।"),
+           "partial": ("There is a partial supply deficit. The ward team shall request a top-up from the city store.",
+                       "আংশিক সরবরাহ ঘাটতি রয়েছে। ওয়ার্ড দল সিটি স্টোর থেকে বাড়তি সরবরাহ চাইবে।"),
+           "critical": ("There is a CRITICAL supply deficit: less than half of at least one item can be supplied. This shall be escalated today.",
+                        "গুরুতর সরবরাহ ঘাটতি রয়েছে: অন্তত একটি সামগ্রীর অর্ধেকও দেওয়া যাচ্ছে না। আজই ঊর্ধ্বতন কর্তৃপক্ষকে জানাতে হবে।")}
+
+    paras = [
+        f"{lab('Action', 'করণীয়')}: {e(N['action'])} "
+        + lab(f"{N['spray_teams']} spray team{' has' if N['spray_teams'] == 1 else 's have'} been assigned to the ward for this round.",
+              f"এই দফায় ওয়ার্ডে {_n(N['spray_teams'], lang)}টি স্প্রে দল নির্ধারণ করা হয়েছে।"),
+        lab("Supplies for the ward (required against allocated) are as follows:", "ওয়ার্ডের সরবরাহ (প্রয়োজন ও বরাদ্দ) নিম্নরূপ:")
+        + f"<table><thead><tr><th>{lab('Item', 'সামগ্রী')}</th><th>{lab('Required', 'প্রয়োজন')}</th><th>{lab('Allocated', 'বরাদ্দ')}</th>"
+          f"<th>{lab('Deficit', 'ঘাটতি')}</th><th>{lab('Covered', 'পূরণ')}</th></tr></thead><tbody>{rows}</tbody></table>"
+        + lvl[N["deficit_level"]][0 if en else 1],
+    ]
     if N["overflow"] and N["overflow"].get("send_to"):
-        overflow = ("<h2>" + ("Bed overflow routing" if en else "অতিরিক্ত রোগী স্থানান্তর") + "</h2><ul>" +
-                    "".join(f"<li>{e(d['ward_id'])}: {_n(d['beds'], lang)}</li>" for d in N["overflow"]["send_to"]) + "</ul>")
+        dest = ", ".join(f"{e(d['ward_id'])} ({_n(d['beds'], lang)} {lab('beds', 'শয্যা')})" for d in N["overflow"]["send_to"])
+        paras.append(lab("Patients beyond the ward's bed capacity shall be referred to: ", "ওয়ার্ডের শয্যার অতিরিক্ত রোগী পাঠাতে হবে: ") + dest + ".")
+    paras.append(lab("Suspected dengue patients shall be referred to ", "সন্দেহভাজন ডেঙ্গু রোগীদের পাঠাতে হবে: ")
+                 + lab(" or ", " অথবা ").join(e(h) for h in N["hospitals"])
+                 + lab(f". Health line: {N['hotline']}.", f"। স্বাস্থ্য বাতায়ন: {_n(N['hotline'], lang)}।"))
+    paras.append(lab("This order takes effect once it is signed by the competent authority.",
+                     "যথাযথ কর্তৃপক্ষের স্বাক্ষরের পর থেকে এই আদেশ কার্যকর হবে।"))
+    body = "".join(f"<li><span>{num(i)}</span><div>{p}</div></li>" for i, p in enumerate(paras, start=2))
+
+    dist = [lab(f"Ward Councillor, {N['ward']}, {corp}", f"ওয়ার্ড কাউন্সিলর, {N['ward']}, {corp}"),
+            lab("Ward health and vector-control supervisor", "ওয়ার্ড স্বাস্থ্য ও মশক নিয়ন্ত্রণ সুপারভাইজার"),
+            lab("City store (medical supplies)", "সিটি স্টোর (চিকিৎসা সামগ্রী)"),
+            lab("Notice board", "নোটিশ বোর্ড"),
+            lab("Office file", "অফিস নথি")]
     issued = datetime.now().strftime("%Y-%m-%d %H:%M")
-    lab = (lambda a, b: a if en else b)
+
     return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{e(N['city'])} {e(N['ward'])}: {lab('Commissioner brief', 'কমিশনার ব্রিফ')}</title><style>{BRIEF_CSS}</style></head><body>
+<title>{e(N['city'])} {e(N['ward'])}: {lab('Office order', 'অফিস আদেশ')}</title><style>{BRIEF_CSS}</style></head><body>
 <button class="print" onclick="window.print()">{lab('Print / save PDF', 'প্রিন্ট / PDF')}</button>
 <main class="sheet">
-<header><div class="brand">Shotorko সতর্ক · {lab('Dengue dispatch brief', 'ডেঙ্গু ডিসপ্যাচ ব্রিফ')}</div>
-<div class="meta">{lab('Forecast issued for week of', 'পূর্বাভাসের সপ্তাহ')} {e(N['issued'])}<br>{lab('Horizon', 'সময়সীমা')}: {_n(N['h'], lang)} {lab('weeks', 'সপ্তাহ')} · {lab('Priority', 'অগ্রাধিকার')} #{_n(N['priority_rank'], lang)} · {lab('Stock', 'মজুদ')} {_n(int(N['stock_pct']), lang)}%</div></header>
-<h1>{e(N['city'])} · {e(N['ward'])}</h1>
-<p class="sub">{lab('Expected peak week', 'প্রত্যাশিত সপ্তাহ')}: {e(N['week'])}</p>
-<span class="tier" style="background:{TIER_HEX[N['tier']]}">{e(N['tier_label'])} {lab('risk', 'ঝুঁকি')}</span>
-<div class="facts"><div><b>{N['cases']}</b><span>{lab('expected cases', 'প্রত্যাশিত রোগী')}</span></div>
-<div><b>{N['range']}</b><span>{lab('80% range', '৮০% পরিসর')}</span></div>
-<div><b>{_n(N['spray_teams'], lang)}</b><span>{lab('spray teams assigned', 'নির্ধারিত স্প্রে দল')}</span></div></div>
-<h2>{lab('Supplies', 'সরবরাহ')}</h2>
-<table><thead><tr><th>{lab('Item', 'সামগ্রী')}</th><th>{lab('Required', 'প্রয়োজন')}</th><th>{lab('Allocated', 'বরাদ্দ')}</th><th>{lab('Deficit', 'ঘাটতি')}</th><th>{lab('Covered', 'পূরণ')}</th></tr></thead><tbody>{rows}</tbody></table>
-<div class="alert {N['deficit_level']}">{lvl[N['deficit_level']][0 if en else 1]}</div>
-{overflow}
-<h2>{lab('Action for the ward team', 'ওয়ার্ড দলের করণীয়')}</h2><p class="action">{e(N['action'])}</p>
-<h2>{lab('Refer patients to', 'রোগী পাঠান')}</h2><ul>{''.join(f'<li>{e(h)}</li>' for h in N['hospitals'])}<li>{lab('Health line', 'স্বাস্থ্য বাতায়ন')}: {_n(N['hotline'], lang)}</li></ul>
-<div class="sign"><div>{lab('Ward commissioner', 'ওয়ার্ড কমিশনার')}</div><div>{lab('Health officer', 'স্বাস্থ্য কর্মকর্তা')}</div></div>
-<footer>{lab('Generated offline by Shotorko from the local forecast model; no internet or AI service used.', 'সতর্ক স্থানীয় মডেল থেকে অফলাইনে তৈরি; ইন্টারনেট বা এআই সেবা ব্যবহার হয়নি।')} {lab('Supply plan source', 'সরবরাহ পরিকল্পনার উৎস')}: {e(N['source'])} · {issued}</footer>
+<header class="lh">
+  <div class="bn">{e(corp_bn)}<br>স্বাস্থ্য বিভাগ<br>{e(town_bn)}, বাংলাদেশ</div>
+  <div class="seal" aria-label="{lab('Office seal', 'দপ্তরের সিল')}"><div><b>{e(N['city_code'])}</b><small class="bn">স্বাস্থ্য বিভাগ</small></div></div>
+  <div class="en">{e(corp_en)}<br>Health Department<br>{e(town_en)}, Bangladesh</div>
+</header>
+<div class="ref"><span>{lab('No.', 'স্মারক নং')} {_memo_no(plan, lang)}</span><span>{lab('Date', 'তারিখ')}: {e(N['issued'])}</span></div>
+<h1>{lab('Office Order', 'অফিস আদেশ')}</h1>
+<p class="subj"><b>{lab('Subject', 'বিষয়')}:</b> {lab(f"Dengue response for {e(N['ward'])}, {e(N['city'])}, for the week of {e(N['week'])}.",
+                                                       f"{e(N['city'])} {e(N['ward'])}-এ {e(N['week'])} সপ্তাহের ডেঙ্গু প্রতিরোধ কার্যক্রম।")}</p>
+<div class="body">
+<p class="lead">{lab(f"According to the Shotorko dengue forecast, {e(N['ward'])} of {e(corp)} is expected to have about <b>{N['cases']}</b> dengue cases in the week of {e(N['week'])} (likely range {N['range']}), {_n(N['h'], lang)} weeks from now. The ward's risk level is <b>{e(N['tier_label'])}</b> (score {_n(N['risk_score'], lang)}/100) and it is priority no. {_n(N['priority_rank'], lang)} in this round, with regional stock at {_n(int(N['stock_pct']), lang)}%.",
+                    f"সতর্ক ডেঙ্গু পূর্বাভাস অনুযায়ী {e(corp)}-এর {e(N['ward'])}-এ {e(N['week'])} সপ্তাহে প্রায় <b>{N['cases']}</b> জন ডেঙ্গু রোগী হতে পারে (সম্ভাব্য পরিসর {N['range']}), যা এখন থেকে {_n(N['h'], lang)} সপ্তাহ পরে। ওয়ার্ডের ঝুঁকির মাত্রা <b>{e(N['tier_label'])}</b> (স্কোর {_n(N['risk_score'], lang)}/{_n(100, lang)}); এই দফায় অগ্রাধিকার ক্রম {_n(N['priority_rank'], lang)}, আঞ্চলিক মজুদ {_n(int(N['stock_pct']), lang)}%।")}</p>
+<ol class="paras">{body}</ol>
+</div>
+<div class="sign"><div class="line"></div>({lab('Name', 'নাম')})<br>{lab('Chief Health Officer', 'প্রধান স্বাস্থ্য কর্মকর্তা')}<br>{e(corp)}</div>
+<section class="dist"><h2>{lab('Distribution', 'বিতরণ')}:</h2><ol>{''.join(f'<li>{num(i)} {e(d)}</li>' for i, d in enumerate(dist, start=1))}</ol></section>
+<div class="grow"></div>
+<footer>{lab('Generated offline by Shotorko from the local forecast model; no internet or AI service used.', 'সতর্ক স্থানীয় মডেল থেকে অফলাইনে তৈরি; ইন্টারনেট বা এআই সেবা ব্যবহার হয়নি।')}<br>{lab('Supply plan source', 'সরবরাহ পরিকল্পনার উৎস')}: {e(N['source'])} · {lab('Printed', 'মুদ্রণ')} {issued}</footer>
 </main></body></html>"""
