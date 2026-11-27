@@ -71,11 +71,12 @@ def _simulation(engine, date, h, deployments, scenario):
 
 def build_plans(engine, date: str, h: int, stock_pct: float = 100.0, total_crews: int = 20,
                 deployments: dict | None = None, scenario=None, positions: dict | None = None,
-                floating_beds=None) -> list[dict]:
+                floating_beds=None, min_share_pct: float = 0.0) -> list[dict]:
     """One ward plan per ward (all 60). stock_pct is a percent (30-100).
 
     floating_beds (optional, Phase 2 extra): reserve beds per city, {city: beds} or one int for every
-    city. They are opened, after transfers, at wards whose patients the city's beds can't take."""
+    city. They are opened, after transfers, at wards whose patients the city's beds can't take.
+    min_share_pct (optional): lifeline, 0-50. Every ward first gets at least this % of each supply."""
     if h not in C.HORIZONS:
         raise ValueError("h must be 2, 3 or 4")
     total_crews = int(total_crews)
@@ -84,7 +85,10 @@ def build_plans(engine, date: str, h: int, stock_pct: float = 100.0, total_crews
     _ENGINES[id(engine)] = engine
     fc = _forecast(id(engine), str(date), int(h), _scenario_key(scenario)).copy()
 
-    alloc = allocate(fc, stock_pct=float(stock_pct) / 100.0, crews=total_crews, basis="expected")
+    if not 0 <= float(min_share_pct) <= 50:
+        raise ValueError("min_share_pct must be between 0 and 50")
+    alloc = allocate(fc, stock_pct=float(stock_pct) / 100.0, crews=total_crews, basis="expected",
+                     min_share=float(min_share_pct) / 100.0)
     by_ward = {w["ward"]: w for w in alloc["wards"]}
 
     if deployments is not None:

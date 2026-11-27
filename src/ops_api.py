@@ -49,9 +49,16 @@ def allocate_ep(date: str | None = None, h: int = Query(3, ge=2, le=4), rain: fl
                 stock: float = Query(1.0, ge=0.3, le=1.0, description="available regional stock, share of demand"),
                 crews: int = Query(60, ge=0, le=500, description="total spraying crews available"),
                 policy: str = Query("weighted", pattern="^(weighted|strict)$"),
+                min_share: float = Query(0.0, ge=0.0, le=0.5, description="lifeline: guaranteed share of need per ward"),
+                saline_stock: int | None = Query(None, ge=0, description="real saline bags in stock (overrides stock)"),
+                kits_stock: int | None = Query(None, ge=0, description="real diagnostic kits in stock"),
+                beds_stock: int | None = Query(None, ge=0, description="real hospital beds available"),
                 city: str | None = None):
     fc, ctx = _frame(date, h, rain, temp, hum, mode, city)
-    return {**ctx, **allocate(fc, stock_pct=stock, crews=crews, basis=basis, policy=policy)}
+    units = {k: v for k, v in (("saline_bags_needed", saline_stock), ("diagnostic_kits_needed", kits_stock),
+                               ("hospital_beds_required", beds_stock)) if v is not None}
+    return {**ctx, **allocate(fc, stock_pct=stock, crews=crews, basis=basis, policy=policy, min_share=min_share,
+                              stock_units=units or None)}
 
 
 @router.get("/surge")

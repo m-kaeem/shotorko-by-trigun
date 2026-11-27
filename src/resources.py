@@ -48,8 +48,8 @@ SUPPLY_RATIOS = {"saline_bags_needed": 2.385, "diagnostic_kits_needed": 1.165, "
 TIER_WEIGHT = {"Low": 1.0, "Medium": 2.0, "High": 3.0, "Critical": 4.0}
 CREWS_BY_TIER = {"Low": 0, "Medium": 1, "High": 2, "Critical": 3}   # larvicide/fogging crew-weeks per ward
 DENSE_WARD = 60_000           # people/km2: one extra crew for very dense wards (more breeding sites per km2)
-STOCK_RANGE = (0.30, 1.00)
-CRITICAL_FILL = 0.50         # a ward with any item below half of its need is a critical deficit (ward-plan contract)    # interactive scarcity range required by the problem set
+STOCK_RANGE = (0.30, 1.00)    # interactive scarcity range required by the problem set
+CRITICAL_FILL = 0.50         # a ward with any item below half of its need is a critical deficit (ward-plan contract)
 
 
 def round_half_up(x):
@@ -144,8 +144,43 @@ def water_fill(demand, weight, stock) -> np.ndarray:
     return np.minimum(alloc, d)
 
 
+def lifeline_fill(demand, weight, stock, min_share: float, fill) -> np.ndarray:
+    """Give every ward a guaranteed minimum first, then share the rest with `fill`.
+
+    Each ward with need first gets ceil(min_share x need), so its coverage is at least min_share.
+    If the stock cannot cover all those minimums, everyone gets the same share instead (equal water
+    filling), which is the fairest a minimum can be. The remainder is shared by priority as usual."""
+    d = np.asarray(demand, dtype=int)
+    stock = int(max(0, stock))
+    if min_share <= 0 or stock >= d.sum():
+        return fill(d, weight, stock)
+    base = np.minimum(d, np.ceil(np.round(d * min_share, 6)).astype(int))
+    if base.sum() > stock:
+        return water_fill(d, np.ones(len(d)), stock)
+    return base + fill(d - base, weight, stock - int(base.sum()))
+
+
+def _covers(demand, alloc, share=CRITICAL_FILL):
+    d, a = np.asarray(demand), np.asarray(alloc)
+    return bool(np.all((d == 0) | (a >= share * d - 1e-9)))
+
+
+def stock_to_clear(demand, weight, fill_fn) -> int:
+    """Smallest stock with no ward under CRITICAL_FILL coverage for this item (binary search; allocation
+    is monotone in stock)."""
+    d = np.asarray(demand, dtype=int)
+    lo, hi = 0, int(d.sum())
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _covers(d, fill_fn(d, weight, mid)):
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
 def allocate(fc: pd.DataFrame, stock_pct: float = 1.0, crews: int = 60, basis: str = "expected",
-             stock_units: dict | None = None, policy: str = "weighted") -> dict:
+             stock_units: dict | None = None, policy: str = "weighted", min_share: float = 0.0) -> dict:
     """Run the allocation for one forecast week.
 
     fc columns: ward_id, city, density, tier, pred, hi (80 % upper bound).
@@ -153,8 +188,12 @@ def allocate(fc: pd.DataFrame, stock_pct: float = 1.0, crews: int = 60, basis: s
     stock_pct: available regional stock as a share of total demand (0.30-1.00), applied to every item.
     stock_units: optional absolute stock per item (overrides stock_pct for that item).
     policy: "weighted" (priority-weighted water filling) or "strict" (fill wards fully in priority order).
+    min_share: lifeline, 0-0.5. Every ward first gets at least this share of each supply (not crews),
+        then the rest is shared by `policy`. At 0.5 no ward is in critical deficit while stock allows it.
     """
-    fill = strict_fill if policy == "strict" else water_fill
+    base_fill = strict_fill if policy == "strict" else water_fill
+    min_share = float(min(max(min_share, 0.0), 0.5))
+    fill = (lambda d, w_, s_: lifeline_fill(d, w_, s_, min_share, base_fill)) if min_share > 0 else base_fill
     stock_pct = float(min(max(stock_pct, 0.0), 1.0))   # the UI/API keep it inside STOCK_RANGE
     fc = fc.reset_index(drop=True)
     cases = fc["hi"] if basis == "upper" else fc["pred"]
@@ -168,11 +207,15 @@ def allocate(fc: pd.DataFrame, stock_pct: float = 1.0, crews: int = 60, basis: s
         stock = int((stock_units or {}).get(k, math.floor(stock_pct * total + 1e-9)))
         a = fill(need[k], w, stock)
         alloc[k] = a
+        clear = stock_to_clear(need[k], w, fill)
         items[k] = {"required": total, "stock": stock, "allocated": int(a.sum()),
-                    "unmet": int(total - a.sum()), "fill": round(float(a.sum()) / total, 4) if total else 1.0}
+                    "unmet": int(total - a.sum()), "fill": round(float(a.sum()) / total, 4) if total else 1.0,
+                    "stock_pct": round(stock / total, 4) if total else 1.0,
+                    # what it takes: smallest stock with no critical ward for this item, and the gap to it
+                    "stock_to_clear_critical": clear, "extra_to_clear_critical": max(0, clear - stock)}
 
     crew_need = crews_for(fc["tier"], fc["density"])
-    crew_alloc = fill(crew_need, w, crews)
+    crew_alloc = base_fill(crew_need, w, crews)          # crews follow priority only (no lifeline)
     crews_out = {"needed": int(crew_need.sum()), "available": int(crews), "assigned": int(crew_alloc.sum()),
                  "unmet": int(crew_need.sum() - crew_alloc.sum()), "idle": int(max(0, crews - crew_need.sum()))}
 
@@ -198,7 +241,12 @@ def allocate(fc: pd.DataFrame, stock_pct: float = 1.0, crews: int = 60, basis: s
                              "shortfall": short, "min_fill": round(float(min_fill), 3)})
     wards.sort(key=lambda x: x["rank"])
     warnings.sort(key=lambda x: (x["level"] != "critical", x["min_fill"]))
-    return {"basis": basis, "policy": policy, "stock_pct": stock_pct, "items": items, "crews": crews_out, "wards": wards,
+    pct_to_clear = max((v["stock_to_clear_critical"] / v["required"] for v in items.values() if v["required"]), default=0.0)
+    fix = {"extra": {k: v["extra_to_clear_critical"] for k, v in items.items()},
+           "stock_pct": min(1.0, math.ceil(pct_to_clear * 100 - 1e-9) / 100),
+           "needed": any(v["extra_to_clear_critical"] for v in items.values())}
+    return {"basis": basis, "policy": policy, "min_share": min_share, "stock_pct": stock_pct, "fix": fix,
+            "items": items, "crews": crews_out, "wards": wards,
             "warnings": warnings, "ratios": SUPPLY_RATIOS, "tier_weight": TIER_WEIGHT,
             "crews_by_tier": CREWS_BY_TIER, "dense_ward": DENSE_WARD,
             "n_deficit": len(warnings), "n_critical": sum(x["level"] == "critical" for x in warnings)}
