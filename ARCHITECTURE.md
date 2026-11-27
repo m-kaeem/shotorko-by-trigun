@@ -96,6 +96,34 @@ On the test years (where only 4.5% of ward-weeks are observed High+), the system
 
 For High or Critical wards, the panel lists the city's dengue-treating public hospitals with the city's forecast load against normal and the DGHS line 16263. No open real-time bed feed exists, so pressure is forecast-based (details in docs/MODEL_REPORT.md).
 
+## Phase 2 operations: supply allocation and hospital overflow (requirements 1–2)
+
+Both modules run on the same cached forecast as the map (`/api/forecast`), in plain numpy/pandas, with no network and no LLM. Code: `src/resources.py`, `src/surge.py`, `src/ops_api.py`; UI: the **Operations** tab (`web/ops.js`). Both modules feed the team's shared **ward plan** format (`src/plan.py`, `GET /api/plan`, `POST /api/plan/simulate`; spec in `docs/PHASE2_PLAN_CONTRACT.md`), which the dispatch notices read. Tests: `tests/test_operations.py` and `tests/test_plan.py` (every contract rule, plus kill-switch tests that block every outbound socket).
+
+```
+forecast (cases, 80% upper, tier) ──► supply rule ──► demand per ward ──► priority water-filling ──► allocation + deficit flags
+                                                     └► bed demand ──► vs local capacity ──► intra-city routing ──► transfers + city utilisation
+```
+
+**Supply rule, fitted from the onsite data.** In the onsite dataset each supply column is an exact function of `dengue_cases`. A grid search (`fit_ratio`) finds ratios that reproduce **all 31,320 rows exactly** (round half up):
+saline = round(cases × 2.385), kits = round(cases × 1.165), beds = round(cases × 0.298).
+For predicted cases the same ratios are used but rounded **up** (ceil), as the ward-plan contract specifies, so a ward is never planned short by rounding. Ward plans use the expected count; the Operations tab can also plan on the 80% upper bound ("worst case").
+
+**Requirement 1: constrained allocation.**
+* Priority weight per ward = tier weight (Low 1, Medium 2, High 3, Critical 4) × population density ÷ mean density.
+* Available stock is set as 30–100% of total projected need (one slider for all three items). It is rounded down, so the total allocated never exceeds that percentage.
+* *Share by priority* (default): find the level L so that Σ demand_i × min(1, L × w_i) = stock. The highest-weight wards are filled to 100% first, and every other ward gets a share proportional to its weight. Whole units come from the largest-remainder method, so the allocated total equals the stock exactly. *Strict triage* is the alternative: wards are filled completely, one by one, in priority order.
+* Spraying crews needed per ward-week: Low 0, Medium 1, High 2, Critical 3, plus 1 for wards denser than 60,000/km². Crews are shared with the same rule against the "Total spraying crews" slider.
+* Deficit flags: any ward below 100% of need is flagged (`partial`). It is **critical** if any item is under 50% covered.
+
+**Requirement 2: hospital surge and overflow routing.**
+* Local dengue bed capacity per ward = the 95th percentile of its weekly `hospital_beds_required` in 2016–2023 (at least 2 beds), times a capacity slider (50–200%). These are the train + validation years the deployed model and the risk tiers are fitted on, so the 2024–25 test years never leak in. The dataset has no bed counts, so this is the load a ward normally absorbs in a busy week; real counts can replace it.
+* Wards whose bed demand exceeds capacity send the overflow, one patient at a time, to the ward **in the same city** with the lowest bed use after receiving that patient (the nearer ward wins ties). An overflowing ward never receives, a receiver never goes above 100%, and nobody crosses a city pool.
+* **Reserve (floating) beds:** officers can give each city a few beds that belong to no ward (field cots, a mobile team). They are used only after transfers, for patients no existing bed in the city can take, and open at the ward where those patients are. They never cross cities. Each escalation warning has a one-click "Open N reserve beds" button, and ward plans carry `overflow.floating_beds`.
+* Overflow still left after that is reported as unresolved, with an escalation warning (more reserve beds or referral out).
+* Outputs: each ward's net deficit or spare beds, the patients it sent and received, its bed use after routing, a transfer list (from → to, patients, schematic km), and each city's capacity, bed use before and after, and remaining spare beds. Both tables export as CSV.
+* On the 105 test weeks of 2024–25 (using the real case counts), at least one ward exceeds capacity in 20% of weeks, routing resolves most of these, and 4% of weeks still need escalation. Tighter rules (90th percentile: 15% of weeks escalate) or looser ones (the highest week ever: overflow in 1% of weeks) were rejected.
+
 ## 8. Limitations and next steps
 
 The organiser data looks synthetic (about 10k cases a year, while DGHS reports over 100k), so the accuracy numbers describe this dataset only. Ward IDs do not match official boundaries, so the map is schematic. Live mode uses real weather but seasonal-normal case counts until a DGHS case feed is connected. The next steps are a DGHS daily feed, Breteau-index larval surveys as an extra feature, and real ward polygons.
