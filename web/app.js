@@ -1060,6 +1060,9 @@
   }
   function setMode(m) {
     if (S.playing) stopPlay();
+    // live mode moves S.date to this week's date; keep the replay week so switching back returns to it
+    if (m === "live" && S.mode !== "live") S.replayDate = S.date;
+    if (m === "replay" && S.mode === "live" && S.replayDate) S.date = S.replayDate;
     S.mode = m;
     $("#modeReplay").setAttribute("aria-pressed", m === "replay"); $("#modeLive").setAttribute("aria-pressed", m === "live");
     // live mode has no week to pick, but the horizon and the Replay / Live switch must stay reachable
