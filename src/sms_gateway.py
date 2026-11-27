@@ -196,6 +196,10 @@ def outbox(limit: int = 200, week: str | None = None) -> list[dict]:
         if week:
             q, args = q + " WHERE week=?", [week]
         rows = con.execute(q + " ORDER BY id DESC LIMIT ?", (*args, limit)).fetchall()
+    # After a server restart the worker is not running yet; anyone looking at messages still on
+    # their way starts it, so "sending" turns into "delivered" without having to send something new.
+    if any(r["status"] in ("queued", "sending", "sent") for r in rows):
+        _wake()
     return [{**dict(r), "phone": _mask(r["phone"]) if r["phone"] else ""} for r in rows]
 
 

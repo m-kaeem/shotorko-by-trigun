@@ -133,3 +133,17 @@ def test_gateway_status_reports_last_seen_and_is_cached(gw, monkeypatch):
     assert gw.gateway_status() is first and calls == ["cloud"]        # reused, no second network call
     gw.gateway_status(fresh=True)
     assert calls == ["cloud", "cloud"]                                 # fresh=True asks again
+
+
+def test_reading_the_outbox_restarts_the_worker_for_messages_in_flight(gw, monkeypatch):
+    """After a restart nothing is enqueued, so the worker must start when in-flight messages are looked at."""
+    woken = []
+    monkeypatch.setattr(gw, "_wake", lambda: woken.append(1))
+    monkeypatch.setenv("SMS_MODE", "dry_run")
+    gw.outbox()
+    assert woken == []                                   # nothing on its way: no worker needed
+    with gw._DB_LOCK, gw._db() as con:
+        con.execute("INSERT INTO messages (created, updated, ward_id, phone, text, week, lang, status, mode, provider_id, attempts, dedupe_key) "
+                    "VALUES ('2026-11-27T18:18:35','2026-11-27T18:18:36','DNCC_Ward_18','+8801700000000','t','2025-07-28','en','sending','android','pid',1,'k')")
+    gw.outbox()
+    assert woken == [1]
