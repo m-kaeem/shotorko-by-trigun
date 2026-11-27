@@ -20,6 +20,14 @@
       policyHelp: { weighted: "Every ward gets a share; higher-priority wards get a bigger share and are filled first.", strict: "Wards are served in full, one by one, in priority order until stock runs out." },
       stock: "Available regional stock", stockHelp: "share of total projected need", crews: "Spraying crews available", crewsHelp: "larvicide / fogging teams · need: Medium 1, High 2, Critical 3, +1 if density ≥ 60,000/km²",
       capScale: "Hospital bed capacity", capHelp: "of each ward's usual dengue beds",
+      life: "Minimum for every ward", lifeHelp: "guaranteed share of each supply before priority sharing (0% = off)",
+      real: "Or type what's in the warehouse", realNote: "Real counts replace the stock slider for that item.", clear: "Clear",
+      realItems: { saline: "Saline bags", kits: "Diagnostic kits", beds: "Hospital beds" }, overridden: "using real counts",
+      fixTitle: "What it takes to clear every critical deficit",
+      fixMore: (s, k, b) => `Get more stock: +${loc(s)} saline bags, +${loc(k)} kits, +${loc(b)} beds`,
+      fixTry: (p) => `Try ${loc(p)}% stock`, fixLife: "Or share differently: guarantee every ward 50% first",
+      fixLifeBtn: "Turn on 50% minimum", fixLifeNote: "Same stock; the top wards give up a little so no ward falls under half.",
+      fixNoStock: "Even a 50% minimum can't fit in this stock. More stock is the only fix.",
       items: { saline_bags_needed: "Saline bags", diagnostic_kits_needed: "Diagnostic kits", hospital_beds_required: "Hospital beds" },
       crewsK: "Spraying crews", allocated: "allocated", required: "needed", unmet: "short", idle: "idle",
       alertN: (n, c) => `${loc(n)} ward${n === 1 ? "" : "s"} can't get 100% of what they need — ${loc(c)} critical.`,
@@ -52,6 +60,14 @@
       policyHelp: { weighted: "সব ওয়ার্ড কিছু পাবে; বেশি অগ্রাধিকারের ওয়ার্ড বড় ভাগ পাবে, আগে পূর্ণ হবে।", strict: "অগ্রাধিকারের ক্রমে একে একে পুরো চাহিদা মেটানো হবে, স্টক শেষ না হওয়া পর্যন্ত।" },
       stock: "আঞ্চলিক স্টক", stockHelp: "মোট চাহিদার অংশ", crews: "স্প্রে দল", crewsHelp: "লার্ভিসাইড / ফগিং দল · চাহিদা: মাঝারি ১, উচ্চ ২, সংকট ৩, ঘনত্ব ≥ ৬০,০০০/কিমি² হলে +১",
       capScale: "হাসপাতাল বেড ক্ষমতা", capHelp: "প্রতিটি ওয়ার্ডের স্বাভাবিক ডেঙ্গু বেডের",
+      life: "প্রতিটি ওয়ার্ডের ন্যূনতম", lifeHelp: "অগ্রাধিকার অনুযায়ী ভাগের আগে প্রতিটি জিনিসের নিশ্চিত অংশ (০% = বন্ধ)",
+      real: "অথবা গুদামে আসলে কত আছে লিখুন", realNote: "আসল সংখ্যা দিলে ওই জিনিসের জন্য স্টক স্লাইডার আর লাগবে না।", clear: "মুছুন",
+      realItems: { saline: "স্যালাইন ব্যাগ", kits: "পরীক্ষার কিট", beds: "হাসপাতাল বেড" }, overridden: "আসল সংখ্যা ব্যবহার হচ্ছে",
+      fixTitle: "সব জরুরি ঘাটতি দূর করতে যা লাগবে",
+      fixMore: (s, k, b) => `আরও স্টক আনুন: +${loc(s)} স্যালাইন, +${loc(k)} কিট, +${loc(b)} বেড`,
+      fixTry: (p) => `${loc(p)}% স্টক দিয়ে দেখুন`, fixLife: "অথবা অন্যভাবে ভাগ করুন: আগে প্রতিটি ওয়ার্ডকে ৫০% নিশ্চিত করুন",
+      fixLifeBtn: "৫০% ন্যূনতম চালু করুন", fixLifeNote: "একই স্টক; উপরের ওয়ার্ডগুলো একটু কম পায়, তাই কোনো ওয়ার্ড অর্ধেকের নিচে নামে না।",
+      fixNoStock: "এই স্টকে ৫০% ন্যূনতমও সম্ভব না। আরও স্টকই একমাত্র উপায়।",
       items: { saline_bags_needed: "স্যালাইন ব্যাগ", diagnostic_kits_needed: "পরীক্ষার কিট", hospital_beds_required: "হাসপাতাল বেড" },
       crewsK: "স্প্রে দল", allocated: "বরাদ্দ", required: "দরকার", unmet: "ঘাটতি", idle: "অলস",
       alertN: (n, c) => `${loc(n)}টি ওয়ার্ড পুরো চাহিদা পাচ্ছে না — ${loc(c)}টি জরুরি।`,
@@ -80,7 +96,7 @@
   // register the nav label so app.js's applyLang() can fill it
   Object.entries(STR).forEach(([l, o]) => { if (window.I18N && window.I18N[l]) window.I18N[l].tabOps = o.tabOps; });
 
-  const O = { stock: 0.6, crews: 60, cap: 1.0, float: {}, basis: "expected", policy: "weighted", city: null, alloc: null, surge: null, prevStatus: {}, built: false, seq: 0 };
+  const O = { stock: 0.6, crews: 60, cap: 1.0, float: {}, life: 0, real: { saline: "", kits: "", beds: "" }, basis: "expected", policy: "weighted", city: null, alloc: null, surge: null, prevStatus: {}, built: false, seq: 0 };
   const SK = () => window.SK;
   const L = () => STR[SK().S.lang] || STR.en;
   const loc = (x) => SK().loc(x);
@@ -113,9 +129,13 @@
         </div>
         <div class="ops-sliders">
           ${slider("opsStock", T.stock, T.stockHelp, 30, 100, 5, Math.round(O.stock * 100), "%")}
+          ${slider("opsLife", T.life, T.lifeHelp, 0, 50, 5, Math.round(O.life * 100), "%")}
           ${slider("opsCrews", T.crews, T.crewsHelp, 0, 200, 1, O.crews, "")}
           ${slider("opsCap", T.capScale, T.capHelp, 50, 200, 5, Math.round(O.cap * 100), "%")}
         </div>
+        <div class="ops-real"><span class="eyebrow">${T.real}</span>
+          ${["saline", "kits", "beds"].map((k) => `<label class="ops-num"><span>${T.realItems[k]}</span><input type="number" min="0" step="1" inputmode="numeric" id="opsReal_${k}" value="${O.real[k]}"></label>`).join("")}
+          <button class="btn" id="opsRealClear">${T.clear}</button><small>${T.realNote}</small></div>
       </div>
       <div class="cards" id="opsKpis"></div>
       <div id="opsAlert"></div>
@@ -150,8 +170,17 @@
       if (inp.id === "opsStock") O.stock = v / 100;
       if (inp.id === "opsCrews") O.crews = v;
       if (inp.id === "opsCap") O.cap = v / 100;
+      if (inp.id === "opsLife") O.life = v / 100;
       go();
     }));
+    const goReal = SK().debounce(load, 350);
+    ["saline", "kits", "beds"].forEach((k) => $(`#opsReal_${k}`).addEventListener("input", (e) => {
+      const v = e.target.value.trim();
+      O.real[k] = v === "" ? "" : String(Math.max(0, Math.floor(+v) || 0));
+      goReal(); markReal();
+    }));
+    $("#opsRealClear").onclick = () => { O.real = { saline: "", kits: "", beds: "" }; ["saline", "kits", "beds"].forEach((k) => $(`#opsReal_${k}`).value = ""); markReal(); load(); };
+    markReal();
     $$("#opsH button").forEach((b) => b.onclick = () => { SK().setH(+b.dataset.h); $$("#opsH button").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); });
     $$("#opsBasis button").forEach((b) => b.onclick = () => { O.basis = b.dataset.b; $$("#opsBasis button").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); });
     $$("#opsPolicy button").forEach((b) => b.onclick = () => {
@@ -173,7 +202,8 @@
     $("#tab-ops").classList.add("busy");
     try {
       const [a, s] = await Promise.all([
-        SK().api("/api/ops/allocate", { ...p, stock: O.stock, crews: O.crews, policy: O.policy }),
+        SK().api("/api/ops/allocate", { ...p, stock: O.stock, crews: O.crews, policy: O.policy, min_share: O.life || undefined,
+          saline_stock: O.real.saline || undefined, kits_stock: O.real.kits || undefined, beds_stock: O.real.beds || undefined }),
         SK().api("/api/ops/surge", { ...p, cap_scale: O.cap, floating: floatParam() }),
       ]);
       if (my !== O.seq) return;
@@ -185,6 +215,25 @@
       render();
     } catch (e) { if (my === O.seq) SK().toast(e.message); }
     finally { if (my === O.seq) $("#tab-ops").classList.remove("busy"); }
+  }
+
+  function markReal() {
+    const on = ["saline", "kits", "beds"].some((k) => O.real[k] !== "");
+    const card = $("#opsStock") && $("#opsStock").closest(".ops-slider");
+    if (card) { card.classList.toggle("ops-off", on); const b = $("#opsStockV"); if (b) b.title = on ? L().overridden : ""; }
+  }
+  function fixBlock(a) {
+    const T = L(), e = a.fix.extra, p = Math.min(100, Math.max(30, Math.ceil(Math.round(a.fix.stock_pct * 100) / 5) * 5));   // slider moves in 5% steps
+    const lifeFits = a.items.saline_bags_needed.stock >= Math.ceil(0.5 * a.items.saline_bags_needed.required);
+    return `<div class="ops-fixbox"><span class="eyebrow">${T.fixTitle}</span>
+      <div class="ops-fixopt"><span>${T.fixMore(e.saline_bags_needed, e.diagnostic_kits_needed, e.hospital_beds_required)}</span>
+        <button class="btn ops-fixbtn" data-fix="stock" data-p="${p}">${T.fixTry(p)}</button></div>
+      ${O.life < 0.5 ? `<div class="ops-fixopt"><span>${lifeFits ? T.fixLife : T.fixNoStock}${lifeFits ? `<br><small>${T.fixLifeNote}</small>` : ""}</span>
+        ${lifeFits ? `<button class="btn ops-fixbtn" data-fix="life">${T.fixLifeBtn}</button>` : ""}</div>` : ""}</div>`;
+  }
+  function setSlider(id, v) {
+    const inp = $("#" + id); if (!inp) return;
+    inp.value = v; inp.dispatchEvent(new Event("input"));
   }
 
   // ------------------------------------------------------------------ render
@@ -205,8 +254,15 @@
     const crit = a.warnings.filter((w) => w.level === "critical");
     $("#opsAlert").innerHTML = a.n_deficit
       ? `<div class="action alert ops-alert"><b>⚠</b><div><b>${T.alertN(a.n_deficit, a.n_critical)}</b> <small>${T.critWhy}</small>
-          <div class="ops-chipline">${(crit.length ? crit : a.warnings).slice(0, 12).map((w) => `<span class="ops-wchip ${w.level}">${wname(w.ward)} · ${pct(w.min_fill)}</span>`).join("")}${a.n_deficit > 12 ? `<span class="ops-wchip">+${loc(a.n_deficit - 12)}</span>` : ""}</div></div></div>`
+          <div class="ops-chipline">${(crit.length ? crit : a.warnings).slice(0, 12).map((w) => `<span class="ops-wchip ${w.level}">${wname(w.ward)} · ${pct(w.min_fill)}</span>`).join("")}${a.n_deficit > 12 ? `<span class="ops-wchip">+${loc(a.n_deficit - 12)}</span>` : ""}</div>
+          ${a.fix && a.fix.needed && a.n_critical ? fixBlock(a) : ""}</div></div>`
       : `<div class="action ok"><b>✓</b><div>${T.alertOk}</div></div>`;
+    $$("#opsAlert .ops-fixbtn").forEach((b) => b.onclick = () => {
+      if (b.dataset.fix === "stock") {
+        O.real = { saline: "", kits: "", beds: "" }; ["saline", "kits", "beds"].forEach((k) => { const i = $(`#opsReal_${k}`); if (i) i.value = ""; });
+        markReal(); setSlider("opsStock", +b.dataset.p);
+      } else setSlider("opsLife", 50);
+    });
     // allocation table
     const bar = (x) => { const f = x.required ? x.allocated / x.required : 1;
       return `<div class="ops-cell"><span>${loc(x.allocated)}<small>/${loc(x.required)}</small></span><i><b style="width:${Math.round(f * 100)}%;background:${f >= 0.999 ? "#22C55E" : f >= 0.6 ? "#FACC15" : "#F43F5E"}"></b></i></div>`; };
