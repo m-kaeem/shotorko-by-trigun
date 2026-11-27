@@ -9,8 +9,15 @@
   const HEX = { Low: "#22C55E", Medium: "#FACC15", High: "#FB923C", Critical: "#F43F5E" };
   const RGB = { Low: [34, 197, 94], Medium: [250, 204, 21], High: [251, 146, 60], Critical: [244, 63, 94] };
   const TEXT_ON = { Low: "#052E16", Medium: "#422006", High: "#431407", Critical: "#170309" };
-  const VIEW_DHAKA = { longitude: 90.415, latitude: 23.83, zoom: 9.6, pitch: 50, bearing: -16 };
-  const VIEW_ALL = { longitude: 91.0, latitude: 23.12, zoom: 7.45, pitch: 42, bearing: -10 };
+  // the whole country in the map box; recomputed from the box size by fitCountry()
+  let VIEW_DHAKA = { longitude: 90.35, latitude: 23.7, zoom: 6.2, pitch: 0, bearing: 0 };
+  const BD_BOUNDS = [[88.0, 20.6], [92.7, 26.65]];
+  // where each city's ward grid is drawn at country scale. Chattogram is at its real place; the four Dhaka-area
+  // cities are only ~40 km apart, so they are spread out north-to-south (same order as in reality) to stay readable
+  const ANCHOR = { "Gazipur": [90.42, 24.62], "Dhaka North": [90.40, 24.05], "Dhaka South": [90.41, 23.45],
+    "Narayanganj": [90.50, 22.95], "Chattogram": [91.80, 22.36] };
+  const CELL_PX = 8;   // one ward square every 8 screen pixels
+  const VIEW_ALL = { longitude: 91.0, latitude: 23.12, zoom: 7.45, pitch: 0, bearing: 0 };
   const CITY_VIEW = { "Dhaka North": [90.392, 23.852, 10.9], "Dhaka South": [90.412, 23.70, 10.9], "Gazipur": [90.43, 24.02, 11.3],
     "Narayanganj": [90.535, 23.612, 11.3], "Chattogram": [91.80, 22.356, 10.8] };
   const BN_DIG = "০১২৩৪৫৬৭৮৯";
@@ -20,7 +27,7 @@
 
   const S = {
     meta: null, dates: [], date: "2025-07-07", h: 3, city: "All", sel: "DNCC_Ward_01",
-    scen: { rain: 1, temp: 0, hum: 0 }, mode: "replay", lang: "en", view: "fc", hosp: null, showHosp: true, heat: {}, heatView: "pred",
+    scen: { rain: 1, temp: 0, hum: 0 }, mode: "replay", lang: "en", view: "fc", hosp: null, showHosp: false, heat: {}, heatView: "pred",
     fc: null, ward: null, playing: false, vs: { ...VIEW_DHAKA }, elev: 0, trustH: 3, val: null,
   };
   let deckgl = null, region = null, wardRows = [], byId = new Map(), colLayer = null, staticLayers = [];
@@ -122,7 +129,7 @@
     $("#cityChips").innerHTML = opts.map((c) => `<button class="chip" data-city="${c}" aria-pressed="${c === S.city}">${c === "All" ? t("allCities") : cityName(c)}</button>`).join("");
     $$("#cityChips .chip").forEach((b) => b.onclick = () => {
       S.city = b.dataset.city; buildChips(); renderForecast(false);
-      if (S.city === "All") flyTo(VIEW_DHAKA); else { const v = CITY_VIEW[S.city]; flyTo({ longitude: v[0], latitude: v[1], zoom: v[2], pitch: 55 }); }
+      // the whole country stays in view; other cities dim
     });
   }
   function buildHorizons() {
@@ -154,7 +161,25 @@
   const humTxt = (v) => (v === 0 ? t("actualWx") : (v > 0 ? "+" : "") + nf(v, 0) + "%");
 
   // ------------------------------------------------------------------ map
+  // Bangladesh sits in the left part of the box as a locator; the right part holds the city lenses
+  const LENSES = [
+    { id: "dhaka", cities: ["Gazipur", "Dhaka North", "Dhaka South", "Narayanganj"] },
+    { id: "ctg", cities: ["Chattogram"] },
+  ];
+  function fitCountry() {
+    const el = $("#stage"); if (!el || !el.clientWidth) return;
+    const W = el.clientWidth, H = el.clientHeight, B = lensBoxes(W, H).loc;
+    try {
+      const v1 = new deck.WebMercatorViewport({ width: B.w, height: B.h }).fitBounds(BD_BOUNDS, { padding: 14 });
+      const v2 = new deck.WebMercatorViewport({ width: W, height: H, longitude: v1.longitude, latitude: v1.latitude, zoom: v1.zoom });
+      const [lon, lat] = v2.unproject([W - (B.x + B.w / 2), H - (B.y + B.h / 2)]);
+      VIEW_DHAKA = { longitude: lon, latitude: lat, zoom: v1.zoom, pitch: 0, bearing: 0 };
+    } catch (e) { console.warn(e); }
+    S.vs = { ...VIEW_DHAKA };
+    $("#labels").dataset.built = "";
+  }
   function initDeck() {
+    fitCountry();
     // key light from the upper left makes the tops bright and the two visible sides two different shades,
     // like the isometric prisms of the design prototype
     const lighting = new deck.LightingEffect({
@@ -164,10 +189,10 @@
     });
     deckgl = new deck.Deck({
       parent: $("#deck"),
-      initialViewState: { longitude: 90.6, latitude: 23.6, zoom: 6.2, pitch: 0, bearing: 0 },
-      controller: { dragRotate: true, touchRotate: true, scrollZoom: { speed: 0.01, smooth: true } },
+      initialViewState: { ...VIEW_DHAKA },   // open straight on the wards: no slow fly-in
+      controller: false,
       effects: [lighting],
-      getCursor: ({ isHovering, isDragging }) => (isDragging ? "grabbing" : isHovering ? "pointer" : "grab"),
+      getCursor: ({ isHovering }) => (isHovering ? "pointer" : "default"),
       onViewStateChange: ({ viewState }) => { S.vs = viewState; refreshLayers(); },
       onAfterRender: positionLabels,
       getTooltip: ({ object, layer }) => {
@@ -189,14 +214,10 @@
         getLineColor: (f) => (f.properties.name === "Bangladesh" ? [34, 211, 238, 170] : [45, 64, 98, 160]),
         lineWidthMinPixels: 1.2,
       }),
-      new deck.ScatterplotLayer({
-        id: "halo", data: S.meta.cities, getPosition: (c) => [c.lon, c.lat], radiusUnits: "meters", getRadius: 9000,
-        getFillColor: [34, 211, 238, 22], stroked: true, getLineColor: [34, 211, 238, 70], lineWidthMinPixels: 1, pickable: false,
-      }),
     ];
     refreshLayers();
     // cinematic intro: fly in, then grow the columns
-    setTimeout(() => flyTo(VIEW_DHAKA, 2400), 250);
+    // (no cinematic fly-in: the map opens already framed on the wards)
     setTimeout(() => tween(0, 1, 1500, (v) => { S.elev = v; refreshLayers(); }), 1300);
     requestAnimationFrame(pulseLoop);
   }
@@ -205,13 +226,13 @@
     const key = S.fc ? `${S.fc.ref_date}|${S.h}|${S.view}|${JSON.stringify(S.fc.scenario)}|${S.fc.mode}` : "none";
     const radius = Math.max(4, Math.min(22, 9.5 * Math.pow(2, ((S.vs.zoom || 9.45) - 9.45) * 0.75)));
     return new deck.ColumnLayer({
-      id: "wards", data: wardRows, diskResolution: 4, angle: 45, radiusUnits: "pixels", radius, extruded: true, pickable: true,
+      id: "wards", data: wardRows, diskResolution: 4, angle: 45, radiusUnits: "pixels", radius: CELL_PX * 0.5, extruded: false, pickable: true,
       flatShading: true, wireframe: true, coverage: 1,
       getLineColor: (d) => { const f = d.f; if (!f) return [120, 140, 170, 80]; const c = RGB[shownTier(f)]; const dim = S.city !== "All" && d.city !== S.city;
         return [...c.map((v) => Math.round(v + (255 - v) * 0.55)), dim ? 30 : 200]; },
       autoHighlight: true, highlightColor: [255, 255, 255, 70],
       elevationScale: ELEV * S.elev * zoomK(),
-      getPosition: (d) => [d.lon, d.lat],
+      getPosition: (d) => [d.dlon ?? d.lon, d.dlat ?? d.lat],
       getElevation: (d) => { const f = d.f; return f ? 0.25 + shownValue(f) : 0.25; },
       getFillColor: (d) => {
         const f = d.f; if (!f) return [60, 80, 110, 120];
@@ -230,7 +251,7 @@
     const f = d.f; const col = f ? RGB[shownTier(f)] : [34, 211, 238];
     const p = ringPhase;
     return new deck.ScatterplotLayer({
-      id: "ring", data: [d], getPosition: (x) => [x.lon, x.lat], radiusUnits: "pixels", getRadius: 10 + 26 * p,
+      id: "ring", data: [d], getPosition: (x) => [x.dlon ?? x.lon, x.dlat ?? x.lat], radiusUnits: "pixels", getRadius: 6 + 12 * p,
       filled: false, stroked: true, lineWidthUnits: "pixels", getLineWidth: 2.5, getLineColor: [...col, Math.round(230 * (1 - p))],
       updateTriggers: { getRadius: p, getLineColor: [p, col.join()] }, pickable: false,
     });
@@ -242,58 +263,137 @@
       id: "hosp", data: S.hosp.hospitals, getPosition: (d) => [d.lon, d.lat], radiusUnits: "pixels", getRadius: 6.5,
       filled: true, getFillColor: [255, 255, 255, 235], stroked: true, lineWidthUnits: "pixels", getLineWidth: 3 + 2 * pulse,
       getLineColor: [244, 63, 94, 200], pickable: true, updateTriggers: { getLineWidth: pulse },
-      onClick: ({ object }) => object && flyTo({ longitude: object.lon, latitude: object.lat, zoom: 12, pitch: 50 }, 1100),
+      onClick: () => {},
     });
   }
-  const allLayers = () => [...staticLayers, colLayer, ringLayer(), hospLayer()].filter(Boolean);
+  const allLayers = () => [...staticLayers, hospLayer()].filter(Boolean);
   function refreshLayers() {
     if (!deckgl) return;
-    colLayer = columnLayer();
+    colLayer = null;
     deckgl.setProps({ layers: allLayers() });
+    drawLenses();
   }
   function pulseLoop(now) {
     ringPhase = ((now || 0) % 1600) / 1600;
-    if (deckgl && colLayer) deckgl.setProps({ layers: allLayers() });
+    if (deckgl && S.showHosp) deckgl.setProps({ layers: allLayers() });
     requestAnimationFrame(pulseLoop);
   }
   function flyTo(v, ms = 1300) {
     if (!deckgl) return;
-    deckgl.setProps({ initialViewState: { ...S.vs, ...v, transitionDuration: ms, transitionInterpolator: new deck.FlyToInterpolator({ speed: 1.4 }), transitionEasing: ease } });
+    // the map is fixed (no pan or zoom), so just jump to the view and redraw the lenses
+    S.vs = { ...S.vs, ...v }; deckgl.setProps({ initialViewState: { ...S.vs } }); drawLenses();
   }
-  function positionLabels() {
+  // ---- city lenses: each ward is an irregular cell (a Voronoi cell around its point, rounded off at the edge)
+  const hash01 = (str, k) => { let h = 2166136261 ^ k; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h >>> 0) % 10000) / 10000; };
+  function clipHalf(poly, a, b) {   // keep the part of poly closer to point a than to point b
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, nx = b[0] - a[0], ny = b[1] - a[1];
+    const side = (q) => (q[0] - mx) * nx + (q[1] - my) * ny;
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const p1 = poly[i], p2 = poly[(i + 1) % poly.length], s1 = side(p1), s2 = side(p2);
+      if (s1 <= 0) out.push(p1);
+      if ((s1 < 0) !== (s2 < 0) && s1 !== s2) { const t2 = s1 / (s1 - s2); out.push([p1[0] + (p2[0] - p1[0]) * t2, p1[1] + (p2[1] - p1[1]) * t2]); }
+    }
+    return out;
+  }
+  const pathOf = (poly) => "M" + poly.map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join("L") + "Z";
+  const KM_PER_DEG = 111.32;
+  function lensBoxes(W, H) {
+    const split = Math.round(W * 0.44), hl = Math.round(H * 0.6);
+    return {
+      loc: { x: 4, y: 4, w: split - 8, h: hl - 8 },
+      dhaka: { x: split + 4, y: 8, w: W - split - 12, h: H - 16 },
+      ctg: { x: 8, y: hl + 4, w: Math.round(split * 0.62), h: H - hl - 12 },
+      legend: { x: Math.round(split * 0.62) + 18, y: hl + 10 },
+    };
+  }
+  const LABEL_AT = { "Narayanganj": "left" };
+  function drawLenses() {
     if (!deckgl || !S.fc) return;
-    const vp = deckgl.getViewports()[0]; if (!vp) return;
-    const el = $("#labels");
-    if (!el.dataset.built || el.dataset.lang !== S.lang + S.city + S.h + S.view + S.fc.ref_date + S.sel + JSON.stringify(S.fc.scenario)) buildLabels();
-    $$(".city-label", el).forEach((n) => {
-      const c = S.meta.cities.find((x) => x.id === n.dataset.city);
-      const [x, y] = vp.project([c.lon, c.lat + (c.id === "Chattogram" ? 0.05 : c.id.startsWith("Dhaka") ? 0.0 : 0.035), 0]);
-      n.style.left = x + "px"; n.style.top = y + "px";
-      n.style.opacity = S.city !== "All" && S.city !== c.id ? 0.3 : 1;
+    const el = $("#labels"), stage = $("#stage");
+    const W = stage.clientWidth, H = stage.clientHeight;
+    const key = [W, H, VIEW_DHAKA.zoom.toFixed(3), VIEW_DHAKA.longitude.toFixed(3), S.lang, S.city, S.h, S.view, S.fc.ref_date, S.sel, JSON.stringify(S.fc.scenario)].join("|");
+    if (el.dataset.built === "1" && el.dataset.key === key) return;
+    if (!W || !H) return;
+    const vp = new deck.WebMercatorViewport({ width: W, height: H, ...VIEW_DHAKA });
+    const boxes = lensBoxes(W, H), counts = visibleCounts();
+    let svg = "", locs = "", scCommon = Infinity;
+    LENSES.forEach((L) => {
+      const b = boxes[L.id], ws = wardRows.filter((w) => L.cities.includes(w.city));
+      if (!ws.length) return;
+      // fit the lens's wards (equal-area-ish: shrink longitudes by cos(lat))
+      const lat0 = ws.reduce((a, w) => a + w.lat, 0) / ws.length, kx = Math.cos(lat0 * Math.PI / 180);
+      const xs = ws.map((w) => w.lon * kx), ys = ws.map((w) => w.lat);
+      const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+      const padT = 34, padB = 40, padX = 26;
+      const sc = Math.min(scCommon, (b.w - 2 * padX) / Math.max(1e-6, maxX - minX), (b.h - padT - padB) / Math.max(1e-6, maxY - minY));
+      scCommon = Math.min(scCommon, sc);
+      const cx = b.x + b.w / 2 - ((minX + maxX) / 2) * sc, cy = b.y + padT + (b.h - padT - padB) / 2 + ((minY + maxY) / 2) * sc;
+      const P = (lon, lat) => [cx + lon * kx * sc, cy - lat * sc];
+      // seeds, nudged a little so cells look like real, uneven wards
+      const pts = ws.map((w) => { const q = P(w.lon, w.lat); return { w, q }; });
+      let cells = "";
+      L.cities.forEach((city) => {
+        const cp = pts.filter((x) => x.w.city === city); if (!cp.length) return;
+        const nn = cp.map((a) => Math.min(...cp.filter((x) => x !== a).map((x) => Math.hypot(x.q[0] - a.q[0], x.q[1] - a.q[1])), 1e9));
+        const d = nn.slice().sort((a, b2) => a - b2)[Math.floor(nn.length / 2)] || 20;
+        cp.forEach((a) => { a.s = [a.q[0] + (hash01(a.w.id, 1) - 0.5) * d * 0.42, a.q[1] + (hash01(a.w.id, 2) - 0.5) * d * 0.42]; });
+        const R = d * 1.02, dim = S.city !== "All" && S.city !== city;
+        cp.forEach((a) => {
+          let poly = [];
+          for (let k = 0; k < 28; k++) { const t2 = (k / 28) * Math.PI * 2, rr = R * (0.9 + 0.2 * hash01(a.w.id, 10 + k)); poly.push([a.s[0] + rr * Math.cos(t2), a.s[1] + rr * Math.sin(t2)]); }
+          cp.forEach((o) => { if (o !== a && poly.length) poly = clipHalf(poly, a.s, o.s); });
+          if (poly.length < 3) return;
+          const f = a.w.f, tier = f ? shownTier(f) : null, sel = a.w.id === S.sel;
+          cells += `<path class="ward-cell${sel ? " sel" : ""}" data-w="${a.w.id}" d="${pathOf(poly)}" fill="${tier ? HEX[tier] : "#3C506E"}" fill-opacity="${dim ? 0.18 : 0.92}"/>`;
+        });
+        // city name above its wards
+        const left = LABEL_AT[city] === "left";
+        const top = left ? cp.reduce((acc, a) => acc + a.s[1], 0) / cp.length + 4 : Math.min(...cp.map((a) => a.s[1])) - R - 3;
+        const mid = left ? Math.min(...cp.map((a) => a.s[0])) - R - 4 : cp.reduce((acc, a) => acc + a.s[0], 0) / cp.length;
+        const n = counts[city] || { hi: 0, n: 0 };
+        cells += `<text class="lens-city${dim ? " dim" : ""}" x="${mid.toFixed(1)}" y="${top.toFixed(1)}" text-anchor="${left ? "end" : "middle"}">${cityName(city)}<tspan class="lens-cnt" dx="5">${loc(n.hi)}/${loc(n.n)}</tspan></text>`;
+      });
+      // scale bar
+      const km = (b.w - 2 * padX) / sc * KM_PER_DEG > 30 ? 5 : 2, px = km / KM_PER_DEG * sc;
+      const sbx = b.x + b.w - 12 - px - 30, sby = b.y + b.h - 11;
+      // leader line from the city's real spot on the country map to the lens
+      const lon = ws.reduce((a, w) => a + w.lon, 0) / ws.length, lat = lat0;
+      const [mx, my] = vp.project([lon, lat]);
+      const ex = Math.max(b.x + 12, Math.min(b.x + b.w - 12, mx)), ey = Math.max(b.y + 12, Math.min(b.y + b.h - 12, my));
+      const sx = mx < b.x ? b.x : mx > b.x + b.w ? b.x + b.w : ex, sy = my < b.y ? b.y : my > b.y + b.h ? b.y + b.h : ey;
+      locs += `<path class="lens-lead" d="M${mx.toFixed(1)},${my.toFixed(1)}L${sx.toFixed(1)},${sy.toFixed(1)}"/>
+        <circle class="lens-pin" cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="4"/>`;
+      svg += `<g class="lens" data-lens="${L.id}">
+        <rect class="lens-box" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="12"/>
+        ${L.cities.length > 1 ? `<text class="lens-title" x="${b.x + 12}" y="${b.y + b.h - 11}">${t("lens")[L.id]}</text>` : ""}
+        ${cells}
+        <g class="lens-scale"><path d="M${sbx},${sby - 4}V${sby}H${(sbx + px).toFixed(1)}V${sby - 4}"/><text x="${(sbx + px + 5).toFixed(1)}" y="${sby}">${loc(km)} ${t("lens").km}</text></g>
+      </g>`;
     });
-    const tag = $(".ward-tag", el), d = byId.get(S.sel);
-    if (tag && d && d.f) {
-      const z = (0.25 + shownValue(d.f)) * ELEV * S.elev * zoomK();
-      const [x, y] = vp.project([d.lon, d.lat, z]);
-      tag.style.left = x + "px"; tag.style.top = (y - 6) + "px";
-    }
+    el.innerHTML = `<svg class="lens-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${locs}${svg}</svg><div class="lens-tip" hidden></div>`;
+    el.dataset.built = "1"; el.dataset.key = key;
+    const lg = $("#legend"); if (lg) { lg.classList.add("in-lens"); lg.style.left = boxes.legend.x + "px"; lg.style.top = boxes.legend.y + "px"; }
+    const tip = $(".lens-tip", el);
+    $$(".ward-cell", el).forEach((c) => {
+      c.onclick = () => selectWard(c.dataset.w, true);
+      c.onmousemove = (e) => {
+        const html = wardTip(c.dataset.w); if (!html) return;
+        const r = stage.getBoundingClientRect();
+        tip.innerHTML = html; tip.hidden = false;
+        tip.style.left = Math.min(W - 10, e.clientX - r.left + 12) + "px"; tip.style.top = (e.clientY - r.top + 12) + "px";
+      };
+      c.onmouseleave = () => { tip.hidden = true; };
+    });
   }
-  function buildLabels() {
-    const el = $("#labels");
-    const vs = visibleCounts();
-    el.innerHTML = S.meta.cities.map((c) => {
-      const n = vs[c.id] || { hi: 0, n: 0 };
-      return `<div class="city-label" data-city="${c.id}"><b>${cityName(c.id)}</b><span>${loc(n.hi)}/${loc(n.n)} ${t("highPlus")}</span></div>`;
-    }).join("");
-    const d = byId.get(S.sel);
-    if (d && d.f) {
-      const c = cur(d.f), tier = shownTier(d.f);
-      const val = S.view === "act" ? `${loc(c.actual ?? "–")} ${S.lang === "bn" ? "জন রিপোর্ট" : "reported"}` : `${nf(c.pred)} ${t("expected")}`;
-      el.insertAdjacentHTML("beforeend", `<div class="ward-tag" style="--c:${HEX[tier]}"><div class="in"><b>${cityName(d.city)} · ${wardLabel(d.id)}</b><span>${tierName(tier)} · ${val}</span></div></div>`);
-    }
-    el.dataset.built = "1";
-    el.dataset.lang = S.lang + S.city + S.h + S.view + S.fc.ref_date + S.sel + JSON.stringify(S.fc.scenario);
+  function wardTip(id) {
+    const w = byId.get(id), f = S.fc && S.fc.wards.find((x) => x.id === id);
+    if (!w || !f) return "";
+    const c = cur(f), tier = shownTier(f);
+    const val = S.view === "act" ? `${loc(c.actual ?? "–")} ${S.lang === "bn" ? "জন রিপোর্ট" : "reported"}` : `${nf(c.pred)} ${t("expected")} (${nf(c.lo)}–${nf(c.hi)})`;
+    return `<b>${cityName(w.city)} · ${wardLabel(w.id)}</b><br><span style="color:${HEX[tier]}">● ${tierName(tier)}</span> · ${val}`;
   }
+  const positionLabels = drawLenses;
   function visibleCounts() {
     const out = {};
     (S.fc ? S.fc.wards : []).forEach((w) => {
@@ -303,7 +403,7 @@
     return out;
   }
   function updateRain() {
-    const n = Math.round(Math.max(4, Math.min(60, 8 + 16 * (S.scen.rain - 0.5))));
+    const n = S.scen.rain === 1 ? 0 : Math.round(Math.max(4, Math.min(60, 8 + 16 * (S.scen.rain - 0.5))));
     const el = $("#rain");
     if (+el.dataset.n === n) return;
     el.dataset.n = n;
@@ -393,11 +493,15 @@
     S.sel = id;
     $("#labels").dataset.built = "";
     $$("#top5 button").forEach((b) => b.classList.toggle("sel", b.dataset.w === id));
-    if (fly) { const d = byId.get(id); flyTo({ longitude: d.lon, latitude: d.lat - 0.035, zoom: Math.max(S.vs.zoom || 9.5, 10.6), pitch: 56 }, 1200); }
+    // selecting a ward no longer moves the camera; the ward is outlined on the map and opened in the panel
     refreshLayers();
     loadWard();
   }
 
+  // "show more" sections in the ward panel: closed by default, remembered once opened
+  const OPEN = new Set();
+  const more = (key, title, html) => `<details class="more" data-more="${key}"${OPEN.has(key) ? " open" : ""}>
+      <summary>${title}</summary><div class="more-body">${html}</div></details>`;
   function renderPanel(animate) {
     const W = S.ward, f = S.fc && S.fc.wards.find((x) => x.id === W.ward);
     if (!f) return;
@@ -411,52 +515,88 @@
     const maxLog = Math.max(0.01, ...W.drivers.map((x) => Math.abs(Math.log(x.mult))));
     const rains = W.weather.slice(-8), rmax = Math.max(1, ...rains.map((x) => x.rain));
     const body = $("#wardBody");
+    // ---- plain-language pieces
+    const P = t("panel");
+    const ratio = c.normal >= 0.5 ? c.pred / c.normal : (c.pred >= 1 ? 2 : 1);
+    const cmp = ratio >= 1.5 ? P.cmpMuch(nf(ratio, 1)) : ratio >= 1.15 ? P.cmpHigher : ratio > 0.85 ? P.cmpSame : P.cmpLower;
+    const trendArrow = (i) => {
+      if (i === 0) return "";
+      const a = f.h[i - 1].pred, b = f.h[i].pred;
+      return b > a * 1.1 ? '<em class="up" title="' + P.rising + '">↑</em>' : b < a * 0.9 ? '<em class="down" title="' + P.falling + '">↓</em>' : '<em class="flat">→</em>';
+    };
+    const REASON = { "Rainfall (lagged)": () => P.rRain(loc(W.rain4), nf(W.rain_ratio, 1)), "Temperature": () => P.rTemp(nf(W.temp4)),
+      "Humidity": () => P.rHum(nf(W.hum4, 0)), "Recent cases": () => P.rCases, "Ward vulnerability": () => P.rWard, "Seasonality": () => P.rSeason };
+    const reasons = W.drivers.filter((x) => x.mult >= 1.15 && REASON[x.group]).slice(0, 3)
+      .map((x) => `<li><span class="r-ic" aria-hidden="true">↑</span><span>${REASON[x.group]()}${x.mult >= 2 ? ` <b class="r-strong">${P.strong}</b>` : ""}</span></li>`).join("");
+    const chips = [
+      d.density >= 52000 ? P.chipCrowded : d.density < 35000 ? P.chipSparse : null,
+      d.waterlogging >= 0.6 ? P.chipFloods : d.waterlogging <= 0.4 ? P.chipDrains : null,
+      d.sanitation <= 0.45 ? P.chipSanPoor : d.sanitation >= 0.65 ? P.chipSanGood : null,
+    ].filter(Boolean).map((x) => `<span class="w-chip">${x}</span>`).join("");
+    const todoKey = `sk-todo:${d.id}:${S.date}:${S.h}`;
+    let done = {}; try { done = JSON.parse(localStorage.getItem(todoKey) || "{}"); } catch (e) { /* ignore */ }
+    const todos = (P.todo[tier] || []).map((txt, i) => `<label class="w-todo-item"><input type="checkbox" data-i="${i}" ${done[i] ? "checked" : ""}><span>${txt}</span></label>`).join("");
+    const dispUrl = "dispatch.html?" + new URLSearchParams({ date: S.date, h: S.h, ward: d.id, lang: S.lang, tier: "all" }).toString();
     body.innerHTML = `
-      <div class="p-head">
-        <div style="display:flex;flex-direction:column;gap:3px">
-          <span class="eyebrow">${cityName(d.city)}</span>
-          <span class="p-name">${wardLabel(d.id)}</span>
-          <span class="tier-badge" style="background:${hx};color:${TEXT_ON[tier]}">${tierName(tier)} ${t("risk")}</span>
-        </div>
-        <svg class="ring" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="${t("riskScore")} ${Math.round(c.score)}">
-          <circle cx="48" cy="48" r="40" fill="none" stroke="#1B2742" stroke-width="9"/>
-          <circle class="fg" cx="48" cy="48" r="40" fill="none" stroke="${hx}" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 ${circ}" transform="rotate(-90 48 48)"/>
-          <text x="48" y="51" text-anchor="middle" font-family="Space Grotesk, Inter, sans-serif" font-size="25" font-weight="700" fill="#E8EEF9" id="scoreNum">${loc(0)}</text>
-          <text x="48" y="67" text-anchor="middle" font-size="10" fill="#93A1BD">${t("riskScore")}</text>
-        </svg>
+      <div class="w-head">
+        <div><span class="w-city">${cityName(d.city)}</span><h2 class="w-name">${wardLabel(d.id)}</h2></div>
+        <span class="tier-badge" style="background:${hx};color:${TEXT_ON[tier]}">${tierName(tier)} ${t("risk")}</span>
       </div>
-      <div class="trio">${f.h.map((x, i) => `<button data-h="${i + 2}" aria-pressed="${i + 2 === S.h}">
-          <small style="color:var(--muted);font-size:12px">${loc(i + 2)} ${t("weeks")} · ${fmtDate(S.fc.targets[i])}</small>
-          <span class="n" data-n="${x.pred}">${nf(0)}</span><small>${t("range80")}: ${nf(x.lo)}–${nf(x.hi)}</small>
-          <span class="bar" style="width:0;background:${HEX[x.tier]}"></span></button>`).join("")}</div>
-      <p class="summary">${summary}</p>
-      <div class="chart"><h3 class="sec-title">${t("casesChart")}</h3>${chartSVG(W, f)}
-        <div class="legend-row"><span><i style="width:14px;height:3px;background:#38BDF8;border-radius:2px;display:inline-block"></i>${t("reported")}</span>
-        <span><i style="width:14px;height:3px;background:#FB923C;border-radius:2px;display:inline-block"></i>${t("fcRange")}</span>
-        <span><i style="width:14px;border-top:2px dashed #93A1BD;display:inline-block"></i>${t("normal")}</span>
-        ${S.mode === "replay" ? `<span><i style="width:9px;height:9px;border:2px solid #38BDF8;border-radius:99px;display:inline-block"></i>${t("laterActual")}</span>` : ""}</div></div>
-      <div style="display:flex;flex-direction:column;gap:9px"><h3 class="sec-title">${t("why")}</h3>
+      <div class="w-verdict" style="--c:${hx}">
+        <b>${P.verdict[tier]}</b>
+        <p>${P.line({ cases: `<strong>${nf(c.pred, 0)}</strong>`, date: fmtDate(S.fc.targets[S.h - 2]), cmp })}</p>
+      </div>
+      <div class="w-chance" role="img" aria-label="${P.chance} ${Math.round(c.score)}%">
+        <div class="w-chance-top"><span>${P.chance}</span><b>${loc(Math.round(c.score))}%</b></div>
+        <div class="w-chance-bar"><i data-w="${Math.max(2, Math.min(100, c.score)).toFixed(0)}" style="background:${hx}"></i></div>
+        <small>${P.chanceNote}</small>
+      </div>
+      <div class="w-trend" role="group" aria-label="${P.trendLabel}">${f.h.map((x, i) => `<button data-h="${i + 2}" aria-pressed="${i + 2 === S.h}">
+          <small>${P.inWeeks(loc(i + 2))}</small><b>~${nf(x.pred, 0)}</b>${trendArrow(i)}
+          <span class="w-dot" style="background:${HEX[x.tier]}" title="${tierName(x.tier)}"></span></button>`).join("")}</div>
+      <small class="w-range">${P.likely(nf(c.lo, 0), nf(c.hi, 0))}</small>
+      <div class="w-block">
+        <h3>${P.whyTitle}</h3>
+        ${reasons ? `<ul class="w-reasons">${reasons}</ul>` : `<p class="w-muted">${P.noSigns}</p>`}
+        ${chips ? `<div class="w-chips"><span class="w-muted">${P.thisWard}</span>${chips}</div>` : ""}
+      </div>
+      <div class="w-block w-todo" style="--c:${hx}">
+        <h3>${P.todoTitle}</h3>
+        ${todos}
+        <div class="w-links">
+          <a class="btn w-go" href="${dispUrl}">${P.sendNotice} →</a>
+          <button class="btn w-go2" data-go="ops">${P.planSupplies} →</button>
+        </div>
+      </div>
+      ${more("why", P.whyDetail, `<div style="display:flex;flex-direction:column;gap:9px">
         ${W.drivers.slice(0, 5).map((x) => `<div class="driver"><span style="color:var(--ink-2)">${t("groups")[x.group] || x.group}</span>
           <span class="track"><i data-w="${Math.max(4, (Math.abs(Math.log(x.mult)) / maxLog) * 100).toFixed(0)}" style="background:${x.mult >= 1 ? "linear-gradient(90deg,#F97316,#FB923C)" : "linear-gradient(90deg,#0EA5E9,#38BDF8)"}"></i></span>
           <span class="m">×${nf(x.mult, 2)}</span></div>`).join("")}
-        <span style="font-size:12px;color:var(--muted)">${t("whyNote")}</span></div>
-      <div class="wx">
+        <span style="font-size:12px;color:var(--muted)">${t("whyNote")}</span></div>`)}
+      ${more("chart", t("casesChart"), `<div class="chart">${chartSVG(W, f)}
+        <div class="legend-row"><span><i style="width:14px;height:3px;background:#38BDF8;border-radius:2px;display:inline-block"></i>${t("reported")}</span>
+        <span><i style="width:14px;height:3px;background:#FB923C;border-radius:2px;display:inline-block"></i>${t("fcRange")}</span>
+        <span><i style="width:14px;border-top:2px dashed #93A1BD;display:inline-block"></i>${t("normal")}</span>
+        ${S.mode === "replay" ? `<span><i style="width:9px;height:9px;border:2px solid #38BDF8;border-radius:99px;display:inline-block"></i>${t("laterActual")}</span>` : ""}</div></div>`)}
+      ${more("wx", t("wxTitle"), `<div class="wx">
         <div><span style="font-size:12px;color:var(--muted)">${t("rain8")}</span>
           <div class="rainbars">${rains.map((x, i) => `<i data-h="${Math.max(2, (x.rain / rmax) * 48).toFixed(0)}" title="${loc(Math.round(x.rain))} mm" style="background:${i >= rains.length - 4 ? "linear-gradient(180deg,#67E8F9,#0891B2)" : "#2A3A5E"}"></i>`).join("")}</div>
           <b style="font-size:13px">${loc(W.rain4)} ${t("rain4")}</b></div>
         <div><span style="font-size:12px;color:var(--muted)">${t("temp")}</span><span class="big">${nf(W.temp4)}°C</span><span style="font-size:12px;color:#A9B6CF">${t("tempNote")}</span></div>
         <div><span style="font-size:12px;color:var(--muted)">${t("hum")}</span><span class="big">${nf(W.hum4, 0)}%</span><span style="font-size:12px;color:#A9B6CF">${t("humNote")}</span></div>
-      </div>
-      ${hospBlock(d, alert)}
-      <div class="action ${alert ? "alert" : "ok"}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:2px"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><span>${action}</span></div>`;
+      </div>`)}
+      ${S.hosp ? more("hosp", t("hosp").title, hospBlock(d, alert)) : ""}`;
+    $$("details.more", body).forEach((el) => el.addEventListener("toggle", () => { el.open ? OPEN.add(el.dataset.more) : OPEN.delete(el.dataset.more); }));
     if (animate) body.classList.remove("fade"), void body.offsetWidth, body.classList.add("fade");
-    $$(".trio button", body).forEach((b) => b.onclick = () => setH(+b.dataset.h));
+    $$(".w-trend button", body).forEach((b) => b.onclick = () => setH(+b.dataset.h));
+    $$(".w-todo-item input", body).forEach((cb) => cb.onchange = () => {
+      let st = {}; try { st = JSON.parse(localStorage.getItem(todoKey) || "{}"); } catch (e) { /* ignore */ }
+      st[cb.dataset.i] = cb.checked; try { localStorage.setItem(todoKey, JSON.stringify(st)); } catch (e) { /* ignore */ }
+    });
+    const go2 = $(".w-go2", body); if (go2) go2.onclick = () => switchTab("ops");
     // animate everything in
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      $(".ring .fg", body).setAttribute("stroke-dasharray", `${(c.score / 100) * circ} ${circ}`);
-      tween(0, c.score, 900, (v) => { const n = $("#scoreNum"); if (n) n.textContent = loc(Math.round(v)); });
-      $$(".trio .n", body).forEach((n) => tween(0, +n.dataset.n, 800, (v) => { n.textContent = nf(v); }));
-      $$(".trio .bar", body).forEach((b) => b.style.width = "100%");
+      $$(".w-chance-bar i", body).forEach((i) => i.style.width = i.dataset.w + "%");
       $$(".driver .track i", body).forEach((i) => i.style.width = i.dataset.w + "%");
       $$(".rainbars i", body).forEach((i) => i.style.height = i.dataset.h + "px");
       $$(".draw", body).forEach((p) => p.style.strokeDashoffset = 0);
@@ -464,7 +604,7 @@
     }));
     $$(".hosp li button", body).forEach((btn) => btn.onclick = () => {
       const hh = S.hosp.hospitals[+btn.dataset.i]; S.showHosp = true; $("#hospToggle").setAttribute("aria-pressed", true);
-      flyTo({ longitude: hh.lon, latitude: hh.lat, zoom: 12, pitch: 50 }, 1100); $("#stage").scrollIntoView({ behavior: "smooth", block: "center" });
+      $("#stage").scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
 
@@ -895,9 +1035,7 @@
     ["dragleave", "drop"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("over"); }));
     dz.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) f.text().then(sendCsv); });
     $("#trySample").onclick = () => fetch("/api/sample.csv").then((r) => r.text()).then(sendCsv);
-    $("#zoomIn").onclick = () => flyTo({ zoom: (S.vs.zoom || 9) + 0.8 }, 500);
-    $("#zoomOut").onclick = () => flyTo({ zoom: (S.vs.zoom || 9) - 0.8 }, 500);
-    $("#resetView").onclick = () => flyTo(S.city === "Chattogram" ? { longitude: 91.8, latitude: 22.32, zoom: 10.8, pitch: 55, bearing: -18 } : (S.city === "All" ? VIEW_DHAKA : VIEW_DHAKA));
+    $("#resetView").onclick = () => flyTo(VIEW_DHAKA, 500);
     $("#search").addEventListener("change", (e) => {
       const v = e.target.value.trim().toLowerCase();
       const hit = wardRows.find((w) => `${cityName(w.city)} · ${wardLabel(w.id)}`.toLowerCase() === v)
@@ -917,6 +1055,7 @@
       toast(t("csvDone"));
     };
     addEventListener("resize", () => { if ($("#tour").classList.contains("on")) $("#tour").classList.remove("on"); });
+    addEventListener("resize", debounce(() => { if (!deckgl) return; fitCountry(); flyTo(VIEW_DHAKA, 0); $("#labels").dataset.built = ""; refreshLayers(); }, 200));
   }
   function setMode(m) {
     if (S.playing) stopPlay();
@@ -972,6 +1111,18 @@
   window.SK = { S, api, t, loc, nf, fmtDate, cityName, tierName, toast, HEX, TEXT_ON, debounce, tween,
     setDate: (d) => setDate(d), setH: (h) => setH(h), wardLabel: (id) => wardLabel(id), ward: (id) => byId.get(id) };
 
+  // ------------------------------------------------------------------ intro ("what is Shotorko?")
+  function setIntro(show) {
+    $("#intro").hidden = !show; $("#introShow").hidden = show;
+    try { localStorage.setItem("sk-intro", show ? "1" : "0"); } catch (e) { /* ignore */ }
+  }
+  function initIntro() {
+    let show = true; try { show = localStorage.getItem("sk-intro") !== "0"; } catch (e) { /* ignore */ }
+    setIntro(show);
+    $("#introClose").onclick = () => setIntro(false);
+    $("#introShow").onclick = () => setIntro(true);
+  }
+
   // ------------------------------------------------------------------ boot
   async function boot() {
     try {
@@ -984,8 +1135,11 @@
     const wi = document.createElement("div"); wi.className = "whatif"; wi.id = "whatIf";
     const body = document.createElement("div"); body.id = "wardBody"; body.style.cssText = "display:flex;flex-direction:column;gap:16px";
     body.innerHTML = '<div class="skeleton" style="height:120px"></div><div class="skeleton" style="height:80px"></div><div class="skeleton" style="height:160px"></div>';
-    $("#panel").append(body, wi);
-    wire(); applyLang(); initTimeline(); updateRain(); initDeck();
+    const wiWrap = document.createElement("details"); wiWrap.className = "more wi-more"; wiWrap.id = "whatIfMore";
+    wiWrap.innerHTML = '<summary data-i="whatIf"></summary>'; wiWrap.append(wi);
+    $("#panel").append(body, wiWrap);
+    $("#stage").after($("#mapNote"));   // the explanation sits under the map, not on top of it
+    wire(); initIntro(); applyLang(); initTimeline(); updateRain(); initDeck();
     await loadForecast(); await loadWard();
     let toured = false; try { toured = localStorage.getItem("sk-toured") === "1"; } catch (e) { /* ignore */ }
     if (!toured && !/notour/.test(location.search)) setTimeout(() => tour(0), 3600);
