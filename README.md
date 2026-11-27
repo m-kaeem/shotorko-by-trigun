@@ -35,6 +35,8 @@ python -m src.export_samples # regenerate exports/: sample SMS, WhatsApp alerts 
 
 **Offline:** the whole app runs without internet (model, data, notices, fonts and map are all local). Force it with `SHOTORKO_OFFLINE=1` (PowerShell: `$env:SHOTORKO_OFFLINE="1"; python run.py`); a yellow "Offline · local mode" badge appears. Details in ARCHITECTURE.md §11.
 
+**Installing with no internet** (e.g. a field office): on any computer with internet and the same OS + Python version, run `scripts\make_offline_bundle.ps1` (or `sh scripts/make_offline_bundle.sh`). It downloads every package into `wheels/` (about 80 MB, not committed). Copy the project folder, `wheels/` included, to the offline computer and run `scripts\install_offline.ps1` (or `sh scripts/install_offline.sh`); pip installs from `wheels/` only and never touches the internet.
+
 **Automatic SMS (optional):** copy `.env.example` to `.env`. With the default `SMS_MODE=dry_run` nothing is sent. For real SMS, run the free *SMS Gateway for Android* app on a phone in local-server mode on the same Wi-Fi/hotspot, then set `SMS_MODE=android` and the gateway address, user and password from the app (ARCHITECTURE.md §10).
 
 ## What you can do in the app

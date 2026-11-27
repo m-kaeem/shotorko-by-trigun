@@ -191,6 +191,10 @@ flowchart LR
 * **Visible state.** `/api/health` reports `offline_forced`, `internet`, what runs locally and the state of the optional services; both pages show an "Offline · local mode" badge.
 * **Proof.** `tests/test_offline.py` cuts the network at the socket level (only loopback allowed), forces offline mode and checks: health, meta, forecast, ward explanations, supply plans (allocated ≤ required, deficits appear at 50% stock), dispatch in every channel and both languages (English SMS ≤160 characters, briefs load nothing remote), live weather degrades without a 500, the SMS queue works in dry run, the export script runs, **no connection attempt is made**, and the web files contain no internet URLs.
 
+* **In-app switch.** A "Simulate offline" button in the header (`POST /api/offline`) turns the kill switch on and off live, so the judges' test can be shown without unplugging anything.
+* **Honest freshness.** In live mode the dashboard says where the weather came from and how old it is ("Live weather from 27 Nov 10:02 (2.2 h ago) · saved copy"); `/api/forecast?mode=live` returns the same in its `weather` block.
+* **Installing with no internet.** `scripts/make_offline_bundle.*` downloads every Python package into `wheels/` once (about 80 MB, not committed); `scripts/install_offline.*` installs from that folder only (`--no-index`). Verified with pip's network deliberately broken: a fresh install completed in about 2 minutes.
+
 To check by hand: `SHOTORKO_OFFLINE=1 python run.py` (PowerShell: `$env:SHOTORKO_OFFLINE="1"; python run.py`), or simply turn Wi-Fi off and use the app.
 
 ## 12. Limitations and next steps

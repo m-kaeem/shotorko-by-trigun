@@ -11,3 +11,6 @@ venv/
 .env
 data/ward_contacts.csv
 data/outbox.sqlite
+
+# offline install bundle (made by scripts/make_offline_bundle.*), large: copy it by USB, do not commit
+wheels/
