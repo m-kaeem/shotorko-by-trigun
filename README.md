@@ -6,16 +6,6 @@
 
 **Live demo:** https://shotorko-by-trigun.onrender.com/ · **Demo video:** [watch on Google Drive](https://drive.google.com/file/d/1qEMGLf551k-3XB1SZB4KWHsLtJW90DJH/view?usp=sharing)
 
-## What's new
-
-**The printable ward notice is now a government office order.** On the Dispatch page, each ward's printable notice used to be a simple app-style brief. It now follows the Bangladesh government memo format, in English and Bangla: a bilingual city-corporation letterhead, memo number and date, an underlined "Office Order" title and subject, numbered paragraphs (forecast, action, supplies, referral hospitals), a signature block for the Chief Health Officer and a distribution list. It is sized for A4 and prints or saves as PDF from the browser.
-
-| Before: dispatch brief | Now: office order |
-|---|---|
-| <img src="docs/images/brief-before.png" alt="The old printable dispatch brief for Dhaka South Ward 06" width="420"> | <img src="docs/images/brief-office-order.png" alt="The new printable office order for Dhaka South Ward 06" width="420"> |
-
-**The ward list on the Dispatch page scrolls in its own box**, so all 48 wards no longer stretch the page, and the chosen ward stays in view.
-
 ## Quick start (≈ 1 minute)
 
 Requires **Python 3.10–3.13** and git.
