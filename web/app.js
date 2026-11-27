@@ -1035,6 +1035,11 @@
 
   // ------------------------------------------------------------------ misc wiring
   function wire() {
+    // the Dispatch notices tab opens its own page for the week, horizon and language on screen
+    const dl = $("#dispatchTab");
+    if (dl) dl.onclick = dl.onmouseenter = dl.onfocus = () => {
+      dl.href = "dispatch.html?" + new URLSearchParams(S.mode === "live" ? { lang: S.lang } : { date: S.date, h: S.h, lang: S.lang }).toString();
+    };
     $$("nav.tabs button").forEach((b) => b.onclick = () => {
       $$("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x === b));
       $$(".tab").forEach((x) => x.classList.toggle("active", x.id === "tab-" + b.dataset.tab));
