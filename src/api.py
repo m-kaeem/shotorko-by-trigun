@@ -341,6 +341,67 @@ def heatmap(h: int = Query(3, ge=2, le=4)):
             "score": piv("risk_score").fillna(0).round(0).astype(int).values.tolist()}
 
 
+# ------------------------------------------------------------------ Req 3: vector-control simulator
+def _sim_args(body: dict):
+    from . import simulation as SIM
+    date = body.get("date") or "2025-07-07"
+    if date not in VALID_SET:
+        raise HTTPException(400, "date must be a dataset week between 2017-01-02 and 2025-12-01")
+    h = int(body.get("h", 3))
+    if h not in C.HORIZONS:
+        raise HTTPException(400, "h must be 2, 3 or 4")
+    total_crews = int(body.get("total_crews", 20))
+    if not 0 <= total_crews <= 200:
+        raise HTTPException(400, "total_crews must be 0-200")
+    sc = _scenario(float(body.get("rain", 1.0)), float(body.get("temp", 0.0)), float(body.get("hum", 0.0)))
+    sc = sc if sc.active else None
+    dep = body.get("deployments")
+    auto = dep is None or dep == "auto"
+    if auto:   # no deployment given: recommend the one that prevents the most cases
+        dep = SIM.best_deployment(ENGINE, date, total_crews, sc)
+    if not isinstance(dep, dict):
+        raise HTTPException(400, "deployments must be {ward_id: crews}, {ward_id: {larvicide, indoor}} or \"auto\"")
+    try:
+        dep = SIM._clean(ENGINE, dep)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, str(exc))
+    if SIM.crews_used(dep) > total_crews:
+        raise HTTPException(400, f"deployments use {SIM.crews_used(dep)} crews but total_crews is {total_crews}")
+    return SIM, date, h, total_crews, sc, dep, auto
+
+
+@app.post("/api/simulate")
+async def simulate_crews(request: Request):
+    """Standalone simulator (works without the plan builder): per-ward counterfactual + ROI ranking."""
+    body = await request.json()
+    SIM, date, h, total_crews, sc, dep, auto = _sim_args(body)
+    costs = {k: float(v) for k, v in (body.get("costs") or {}).items() if k in SIM.COSTS and float(v) >= 0}
+    t0 = time.perf_counter()
+    sims = SIM.simulate(ENGINE, date, dep, sc, costs=costs)
+    ranking = SIM.roi_ranking(ENGINE, date, 1, sc)
+    return {"date": date, "total_crews": total_crews, "auto": auto, "deployments": dep,
+            "summary": SIM.summary(sims), "wards": sims, "roi_ranking": ranking,
+            "costs": {**SIM.COSTS, **costs}, "assumptions": SIM.ASSUMPTIONS,
+            "latency_ms": round((time.perf_counter() - t0) * 1000, 1)}
+
+
+@app.get("/api/simulate/check")
+def simulate_check():
+    """Does the model respond to crew-changeable features the way the data says? (out-of-sample weeks)"""
+    from . import simulation as SIM
+    return SIM.model_check(ENGINE)
+
+
+@app.get("/api/simulate/roi")
+def simulate_roi(date: str = "2025-07-07", crews: int = Query(1, ge=1, le=6)):
+    """All 60 wards ranked by cases prevented per crew if `crews` crews were sent there."""
+    from . import simulation as SIM
+    if date not in VALID_SET:
+        raise HTTPException(400, "date must be a dataset week between 2017-01-02 and 2025-12-01")
+    return {"date": date, "crews": crews, "ranking": SIM.roi_ranking(ENGINE, date, crews),
+            "assumptions": SIM.ASSUMPTIONS}
+
+
 @app.get("/api/health")
 def health():
     return JSONResponse({"ok": True})
