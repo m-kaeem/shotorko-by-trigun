@@ -148,13 +148,31 @@
       ${lab("rain", rainTxt(sc.rain), t("rainMult"))}<input id="wi-rain" type="range" min="0" max="3" step="0.1" value="${sc.rain}">
       ${lab("temp", tempTxt(sc.temp), t("tempD"))}<input id="wi-temp" type="range" min="-4" max="4" step="0.5" value="${sc.temp}">
       ${lab("hum", humTxt(sc.hum), t("humD"))}<input id="wi-hum" type="range" min="-20" max="20" step="1" value="${sc.hum}">
+      <div class="wi-effect" id="wiEffect" aria-live="polite"></div>
       <span style="font-size:12px;color:var(--ink-2)">${t("whatIfNote")}</span>`;
+    renderWhatIfEffect();
     const go = debounce(refresh, 280);
     ["rain", "temp", "hum"].forEach((k) => {
       const el = $("#wi-" + k);
       el.oninput = () => { S.scen[k] = +el.value; $("#wi-" + k + "-v").textContent = { rain: rainTxt, temp: tempTxt, hum: humTxt }[k](S.scen[k]); updateRain(); go(); };
     });
     $("#wiReset").onclick = () => { S.scen = { rain: 1, temp: 0, hum: 0 }; buildWhatIf(); updateRain(); refresh(); };
+  }
+  // what the weather what-if changed, as numbers: the map colours only move when a ward crosses a risk level
+  function renderWhatIfEffect() {
+    const el = $("#wiEffect"); if (!el) return;
+    const sc = S.scen, active = sc.rain !== 1 || sc.temp !== 0 || sc.hum !== 0;
+    const key = `${S.mode}|${S.mode === "live" ? "" : S.date}`;
+    if (!active || !S.fc || !S.base || S.baseKey !== key) { el.innerHTML = ""; el.hidden = true; return; }
+    const ids = new Set(visible().map((w) => w.id)), i = S.h - 2;
+    const sum = (fc) => fc.wards.filter((w) => ids.has(w.id)).reduce((a, w) => {
+      const x = w.h[i]; a.cases += x.pred; if (x.tier === "High" || x.tier === "Critical") a.hot++; return a; }, { cases: 0, hot: 0 });
+    const was = sum(S.base), now = sum(S.fc), pct = was.cases > 0.05 ? Math.round((now.cases / was.cases - 1) * 100) : null;
+    const sign = (v) => (v > 0 ? "+" : "") + loc(v);
+    el.hidden = false;
+    el.innerHTML = `<span>${t("wiCases")(loc(S.h))}</span><b>${nf(was.cases, 0)} → ${nf(now.cases, 0)}${pct != null ? ` <small>(${sign(pct)}%)</small>` : ""}</b>
+      <span>${t("wiHot")}</span><b>${loc(was.hot)} → ${loc(now.hot)}</b>
+      ${now.hot === was.hot && was.cases < 3 * ids.size ? `<small class="wi-hint">${t("wiQuiet")}</small>` : ""}`;
   }
   const rainTxt = (v) => (v === 1 ? t("actualWx") : "×" + nf(v, 1));
   const tempTxt = (v) => (v === 0 ? t("actualWx") : (v > 0 ? "+" : "") + nf(v, 1) + "°C");
@@ -420,8 +438,13 @@
     const my = ++seqF;
     $("#stage").style.cursor = "progress";
     try {
-      const fc = await api("/api/forecast", scenParams());
+      const p = scenParams(), active = p.rain !== 1 || p.temp !== 0 || p.hum !== 0;
+      const baseKey = `${p.mode}|${p.date || ""}`;
+      const [fc, base] = await Promise.all([api("/api/forecast", p),
+        active && S.baseKey !== baseKey ? api("/api/forecast", { ...p, rain: 1, temp: 0, hum: 0 }) : null]);
       if (my !== seqF) return;
+      if (base) { S.base = base; S.baseKey = baseKey; }
+      if (!active) { S.base = fc; S.baseKey = baseKey; }
       S.fc = fc;
       if (S.mode === "live") S.date = fc.ref_date;
       const map = new Map(fc.wards.map((w) => [w.id, w]));
@@ -449,6 +472,7 @@
     if (S.mode === "replay") updateCalLabel(); else $("#dateLabel").textContent = fmtDate(S.fc.ref_date, true);
     const whenSub = $("[data-i=stepWhenSub]"); if (whenSub) whenSub.textContent = t(S.mode === "live" ? "stepWhenSubLive" : "stepWhenSub");
     renderFreshness();
+    renderWhatIfEffect();
     const b = $("#sampleBadge");
     if (S.mode === "live") { b.className = "badge live"; b.textContent = t("liveBadge"); }
     else if (S.fc.out_of_sample) { b.className = "badge oos"; b.textContent = "● " + t("oos"); }

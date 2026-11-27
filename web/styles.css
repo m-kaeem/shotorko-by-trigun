@@ -164,6 +164,11 @@ input[type=range]{accent-color:var(--cyan);width:100%;cursor:pointer}
 .whatif{background:linear-gradient(135deg,#0F2A3A 0%,#0D1629 100%);border:1px solid #1E4A5E;border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:10px}
 .whatif label{font-size:13px;display:flex;justify-content:space-between;gap:10px}
 .whatif label b{color:var(--cyan-2)}
+.wi-effect{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:baseline;font-size:12.5px;background:rgba(8,14,28,.55);border:1px solid rgba(103,232,249,.25);border-radius:10px;padding:9px 11px}
+.wi-effect[hidden]{display:none}
+.wi-effect b{color:var(--cyan-2);font-size:14px;text-align:right;white-space:nowrap}
+.wi-effect b small{color:var(--ink-2);font-weight:500}
+.wi-effect .wi-hint{grid-column:1/-1;color:var(--ink-2);line-height:1.4}
 .sim-drop{stroke-dasharray:3 4;animation:simrain 1s linear infinite}
 @keyframes simrain{to{stroke-dashoffset:-14}}
 .action{display:flex;gap:10px;align-items:flex-start;border-radius:14px;padding:13px 15px;font-size:14px;line-height:1.5;transition:background .3s,border-color .3s}
