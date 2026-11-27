@@ -143,7 +143,7 @@
   function smsLog(wid) {
     const m = S.box[wid]; if (!m) return "";
     const when = (m.updated || "").replace("T", " ").slice(0, 16);
-    return `<div class="sms-log">${t("smsLast")}: <b>${t("smsSt")[m.status] || m.status}</b> · ${esc(m.phone || "")} · ${loc(when)}${m.error ? ` · ${esc(m.error)}` : ""}</div>`;
+    return `<div class="sms-log">${t("smsLast")}: <b>${t("smsSt")[m.status] || m.status}</b> · ${esc(m.phone || "")} · ${loc(when)}${m.route ? ` · ${(t("smsRoute") || {})[m.route] || m.route}` : ""}${m.error ? ` · ${esc(m.error)}` : ""}</div>`;
   }
   async function loadGateway() {
     try {
@@ -152,6 +152,7 @@
       const cls = g.mode !== "android" ? "dry" : g.reachable ? "ok" : "down";
       el.className = "gw " + cls;
       $("span", el).textContent = cls === "dry" ? t("gwDry") : cls === "ok" ? t("gwOk") : t("gwDown");
+      if (cls === "ok" && g.route) $("span", el).textContent += " · " + ((t("smsRoute") || {})[g.route] || g.route);
       el.title = g.detail || "";
     } catch (e) { /* status is informative only */ }
   }

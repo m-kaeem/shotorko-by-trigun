@@ -1,10 +1,13 @@
 """Automatic SMS sending for dispatch notices, through an Android phone used as the SMS gateway.
 
 How it works
-    Shotorko --HTTP over Wi-Fi--> Android phone running "SMS Gateway for Android" (local server mode)
-             --SIM--> ward officers' phones
-The phone app is free and open source (github.com/capcom6/android-sms-gateway). The laptop and the phone
-only need the same Wi-Fi or the phone's hotspot; no internet and no paid SMS account.
+    Shotorko --HTTPS--> SMS Gateway cloud relay (api.sms-gate.app) --> the phone   (cloud route: any network)
+    Shotorko --HTTP over Wi-Fi--> the phone's local server                          (local route: same Wi-Fi)
+    the phone --SIM--> ward officers' phones
+The phone app "SMS Gateway for Android" is free and open source (github.com/capcom6/android-sms-gateway).
+Cloud route: the phone keeps a connection to the free relay, so Shotorko can run anywhere (a hosted URL, a
+laptop on another network) and still reach it; both sides just need internet. Local route: same Wi-Fi or the
+phone's hotspot, no internet at all. When both are configured, cloud is tried first and local is the backup.
 
 Modes (set in .env, see .env.example)
     SMS_MODE=dry_run   default: every message is logged to the outbox as "dry-run" and nothing is sent
@@ -46,6 +49,9 @@ def settings() -> dict:
         "url": os.environ.get("SMS_GATEWAY_URL", "").rstrip("/"),
         "user": os.environ.get("SMS_GATEWAY_USER", ""),
         "password": os.environ.get("SMS_GATEWAY_PASS", ""),
+        "cloud_url": os.environ.get("SMS_CLOUD_URL", "https://api.sms-gate.app/3rdparty/v1").rstrip("/"),
+        "cloud_user": os.environ.get("SMS_CLOUD_USER", ""),
+        "cloud_password": os.environ.get("SMS_CLOUD_PASS", ""),
         "override_to": os.environ.get("SMS_OVERRIDE_TO", "").strip(),   # demo: send every message to this one number
         "pause_s": float(os.environ.get("SMS_PAUSE_SECONDS", "2")),
     }
@@ -53,7 +59,7 @@ def settings() -> dict:
 
 def public_settings() -> dict:
     s = settings()
-    return {"mode": s["mode"], "gateway": s["url"] or None, "override_to": _mask(normalise(s["override_to"])) if s["override_to"] else None,
+    return {"mode": s["mode"], "gateway": s["url"] or None, "routes": [r["name"] for r in routes()], "override_to": _mask(normalise(s["override_to"])) if s["override_to"] else None,
             "contacts_with_phone": sum(1 for c in contacts().values() if c["phone"])}
 
 
@@ -111,6 +117,8 @@ def _db() -> sqlite3.Connection:
         week TEXT, lang TEXT, status TEXT, mode TEXT, provider_id TEXT, error TEXT, attempts INTEGER DEFAULT 0,
         dedupe_key TEXT)""")
     con.execute("CREATE INDEX IF NOT EXISTS ix_dedupe ON messages(dedupe_key)")
+    if "route" not in {r[1] for r in con.execute("PRAGMA table_info(messages)")}:   # older outboxes: add the column
+        con.execute("ALTER TABLE messages ADD COLUMN route TEXT")
     return con
 
 
@@ -153,47 +161,102 @@ def _update(mid: int, **f) -> None:
         con.execute(f"UPDATE messages SET {cols} WHERE id=?", (*f.values(), mid))
 
 
-# ------------------------------------------------------------------ the Android gateway
-def _session():
-    import requests
+# ------------------------------------------------------------------ the Android gateway (cloud relay + local Wi-Fi)
+def routes() -> list[dict]:
+    """Configured ways to reach the phone, in the order they are tried: cloud relay first, then local Wi-Fi."""
     s = settings()
+    out = []
+    if s["cloud_user"] and s["cloud_password"]:
+        out.append({"name": "cloud", "url": s["cloud_url"], "user": s["cloud_user"], "password": s["cloud_password"]})
+    if s["url"]:
+        out.append({"name": "local", "url": s["url"], "user": s["user"], "password": s["password"]})
+    return out
+
+
+def _route(name: str) -> dict | None:
+    return next((r for r in routes() if r["name"] == name), None)
+
+
+def _session(route: dict):
+    import requests
     sess = requests.Session()
-    sess.auth = (s["user"], s["password"])
-    return sess, s["url"]
+    sess.auth = (route["user"], route["password"])
+    return sess
+
+
+def _check(route: dict) -> tuple[bool, str]:
+    """(reachable, detail) for one route. Never raises."""
+    try:
+        sess = _session(route)
+        if route["name"] == "cloud":   # the relay lists the phones registered to this account
+            r = sess.get(route["url"] + "/devices", timeout=6)
+            if r.status_code in (401, 403):
+                return False, "cloud login rejected: check SMS_CLOUD_USER / SMS_CLOUD_PASS"
+            if r.status_code == 200:
+                try:
+                    n = len(r.json())
+                except ValueError:
+                    n = 0
+                return (n > 0), (f"cloud relay: {n} phone(s) registered" if n else "cloud relay: no phone registered yet")
+            return r.status_code < 500, f"cloud relay answered ({r.status_code})"
+        r = sess.get(route["url"] + "/health", timeout=4)
+        return r.status_code < 500, f"phone answered on local Wi-Fi ({r.status_code})"
+    except Exception as exc:   # phone off, different Wi-Fi, no internet...
+        return False, f"{route['name']} not reachable: {type(exc).__name__}"
 
 
 def gateway_status() -> dict:
-    """Is the phone reachable? Never raises."""
+    """Can at least one route reach the phone? Never raises."""
     s = settings()
     if s["mode"] != "android":
-        return {"mode": s["mode"], "reachable": None, "detail": "dry run: nothing is sent"}
-    if not s["url"]:
-        return {"mode": "android", "reachable": False, "detail": "SMS_GATEWAY_URL is not set in .env"}
-    try:
-        sess, url = _session()
-        r = sess.get(url + "/health", timeout=4)
-        ok = r.status_code < 500
-        return {"mode": "android", "reachable": ok, "detail": f"phone answered ({r.status_code})"}
-    except Exception as exc:   # phone off, different Wi-Fi, app closed...
-        return {"mode": "android", "reachable": False, "detail": f"phone not reachable: {type(exc).__name__}"}
+        return {"mode": s["mode"], "reachable": None, "detail": "dry run: nothing is sent", "route": None}
+    rs = routes()
+    if not rs:
+        return {"mode": "android", "reachable": False, "route": None,
+                "detail": "no route set: add SMS_CLOUD_USER/PASS (any network) or SMS_GATEWAY_URL (local Wi-Fi) to .env"}
+    details = []
+    for r in rs:
+        ok, d = _check(r)
+        details.append(d)
+        if ok:
+            return {"mode": "android", "reachable": True, "route": r["name"], "detail": d}
+    return {"mode": "android", "reachable": False, "route": None, "detail": "; ".join(details)}
 
 
-def _send_android(phone: str, text: str) -> str:
-    """POST one message to the phone; returns the gateway's message id. Raises on failure."""
-    sess, url = _session()
-    body = {"textMessage": {"text": text}, "phoneNumbers": [phone]}
-    r = sess.post(url + "/message", json=body, timeout=10)
-    if r.status_code == 400:   # older app versions take {"message": "..."} instead of textMessage
-        r = sess.post(url + "/message", json={"message": text, "phoneNumbers": [phone]}, timeout=10)
+def _post(route: dict, phone: str, text: str) -> str:
+    sess = _session(route)
+    for path in ("/message", "/messages"):   # app versions differ in the path and the body shape
+        r = sess.post(route["url"] + path, json={"textMessage": {"text": text}, "phoneNumbers": [phone]}, timeout=15)
+        if r.status_code == 400:
+            r = sess.post(route["url"] + path, json={"message": text, "phoneNumbers": [phone]}, timeout=15)
+        if r.status_code != 404:
+            break
     if r.status_code >= 400:
-        raise RuntimeError(f"gateway HTTP {r.status_code}: {r.text[:160]}")
+        raise RuntimeError(f"{route['name']} gateway HTTP {r.status_code}: {r.text[:160]}")
     return str(r.json().get("id", ""))
 
 
-def _state_android(provider_id: str) -> tuple[str, str | None]:
+def _send_android(phone: str, text: str) -> tuple[str, str]:
+    """Send through the first route that works; returns (route name, gateway message id). Raises if all fail."""
+    errors = []
+    for route in routes():
+        try:
+            return route["name"], _post(route, phone, text)
+        except Exception as exc:
+            errors.append(str(exc)[:120])
+    raise RuntimeError(" | ".join(errors) or "no SMS route configured")
+
+
+def _state_android(route_name: str, provider_id: str) -> tuple[str, str | None]:
     """Map the phone's state to ours: Pending/Processed -> sending, Sent -> sent, Delivered -> delivered, Failed -> failed."""
-    sess, url = _session()
-    r = sess.get(f"{url}/message/{provider_id}", timeout=6)
+    route = _route(route_name or "local") or (routes() or [None])[0]
+    if route is None:
+        return "sending", None
+    sess = _session(route)
+    for path in ("/message/", "/messages/"):
+        r = sess.get(f"{route['url']}{path}{provider_id}", timeout=8)
+        if r.status_code != 404:
+            break
     if r.status_code >= 400:
         return "sending", None
     j = r.json()
@@ -242,15 +305,15 @@ def _tick() -> bool:
         return True   # phone away: keep everything queued and try again shortly
     for m in queued:
         try:
-            pid = _send_android(m["phone"], m["text"])
-            _update(m["id"], status="sending", provider_id=pid, mode="android", attempts=m["attempts"] + 1, error=None)
+            route, pid = _send_android(m["phone"], m["text"])
+            _update(m["id"], status="sending", provider_id=pid, mode="android", route=route, attempts=m["attempts"] + 1, error=None)
         except Exception as exc:
             n = m["attempts"] + 1
             _update(m["id"], status="failed" if n >= MAX_ATTEMPTS else "queued", attempts=n, error=str(exc)[:200])
         time.sleep(max(0.0, s["pause_s"]))
     for m in inflight:
         try:
-            st, err = _state_android(m["provider_id"])
+            st, err = _state_android(m["route"], m["provider_id"])
             if st != m["status"]:
                 _update(m["id"], status=st, error=err)
         except Exception:
