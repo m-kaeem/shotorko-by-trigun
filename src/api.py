@@ -26,6 +26,16 @@ from .risk import channel_lookup
 app = FastAPI(title="Shotorko API", version="1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+
+@app.middleware("http")
+async def _fresh_page_files(request: Request, call_next):
+    """Make browsers re-check page files (HTML/JS/CSS) on every load, so an update shows without a hard
+    refresh. Unchanged files still come back as a cheap 304 Not Modified."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/") and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
 ENGINE = Engine()
 STATS = {"model_calls": 0, "cache_hits": 0, "last_latency_ms": 0.0}
 WEB_DIR = C.ROOT / "web"

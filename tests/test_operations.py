@@ -210,3 +210,12 @@ def test_real_counts_endpoint():
     assert c.get("/api/ops/allocate", params={"min_share": 0.9}).status_code == 422
     r = c.get("/api/plan", params={"date": "2025-07-07", "stock_pct": 60, "min_share_pct": 50})
     assert r.status_code == 200 and all(p["deficit_level"] != "critical" for p in r.json()["plans"])
+
+
+def test_page_files_are_revalidated_so_updates_show():
+    from fastapi.testclient import TestClient
+    from src.api import app
+    c = TestClient(app)
+    for path in ("/", "/app.js", "/ops.js"):
+        assert c.get(path).headers.get("cache-control") == "no-cache"
+    assert "no-cache" not in (c.get("/api/health").headers.get("cache-control") or "")
