@@ -195,7 +195,7 @@ def plan(date: str | None = None, h: int = Query(3, ge=2, le=4), stock_pct: floa
          temp: float = Query(0.0, ge=-5, le=5), hum: float = Query(0.0, ge=-30, le=30),
          floating_beds: str | None = Query(None, description="reserve beds per city, e.g. 'Gazipur:2'"),
          min_share_pct: float = Query(0.0, ge=0, le=50, description="lifeline: guaranteed % of need per ward"),
-         floor_beds_per_gap: int = Query(0, ge=0, le=2, description="mattresses per gap between two beds (0 = off)")):
+         floor_beds_per_gap: int = Query(0, ge=0, le=1, description="1 = one mattress in each gap between two beds, 0 = off")):
     from .surge import CITY_ORDER, parse_city_counts
     try:
         floating = parse_city_counts(floating_beds, CITY_ORDER)

@@ -109,11 +109,12 @@ def route(fc: pd.DataFrame, capacity: pd.Series, scale: float = 1.0, basis: str 
     team). They are used only after transfers, for patients the city's existing beds can't take,
     and are opened at the ward where those patients are.
 
-    per_gap: floor beds between beds, 0 (off), 1 or 2 mattresses per gap. A ward whose b beds stand
-    in a row has b - 1 gaps between them, so it can take up to (b - 1) x per_gap extra patients this
+    per_gap: floor beds between beds, 0 (off) or 1 mattress per gap (one is all that fits and still
+    leaves room for staff). A ward whose b beds stand in a row has b - 1 gaps, so it can take up to
+    (b - 1) x per_gap extra patients this
     way, for its own patients only. Used after transfers (a real bed elsewhere is better than a floor
     bed) and before the city's reserve beds."""
-    per_gap = int(min(max(int(per_gap), 0), 2))
+    per_gap = int(min(max(int(per_gap), 0), 1))
     fc = fc.reset_index(drop=True).copy()
     cases = fc["hi"] if basis == "upper" else fc["pred"]
     fc["required"] = supplies_for(cases)["hospital_beds_required"]

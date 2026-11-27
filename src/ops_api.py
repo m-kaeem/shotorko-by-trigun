@@ -91,7 +91,7 @@ def surge_ep(date: str | None = None, h: int = Query(3, ge=2, le=4), rain: float
              cap_scale: float = Query(1.0, ge=0.25, le=3.0, description="multiplier on baseline bed capacity"),
              max_util: float = Query(1.0, ge=0.5, le=1.0, description="highest bed occupancy a receiving ward may reach"),
              floating: str | None = Query(None, description="reserve beds per city, e.g. 'Gazipur:2,Dhaka North:1'"),
-             per_gap: int = Query(0, ge=0, le=2, description="floor beds between beds: mattresses per gap (0 = off)"),
+             per_gap: int = Query(0, ge=0, le=1, description="floor beds between beds: 1 = one mattress per gap, 0 = off"),
              city: str | None = None):
     fc, ctx = _frame(date, h, rain, temp, hum, mode, city)
     pos = _api().POS

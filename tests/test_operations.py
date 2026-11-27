@@ -234,8 +234,7 @@ def test_floor_beds_between_beds_after_transfers_own_ward_only_and_before_reserv
         if w["required"] <= w["capacity"]:
             assert w["emergency"] == 0                            # only wards with their own overflow use them
     assert sum(w["unresolved"] for w in out["wards"]) < sum(w["unresolved"] for w in base["wards"])
-    two = route(_fc(), cap, per_gap=2)
-    assert all(w["emergency_cap"] == 2 * w["gaps"] for w in two["wards"])
+    assert route(_fc(), cap, per_gap=2)["per_gap"] == 1            # one mattress per gap at most
     both = route(_fc(), cap, per_gap=1, floating={"A": 5, "B": 5})
     alone = route(_fc(), cap, floating={"A": 5, "B": 5})
     assert both["totals"]["floating_used"] <= alone["totals"]["floating_used"]   # floor beds come before reserve beds
@@ -250,7 +249,7 @@ def test_floor_beds_endpoint_and_plans():
     j0 = c.get("/api/ops/surge", params={"date": "2025-07-07", "cap_scale": 0.85}).json()
     assert j["totals"]["emergency_used"] > 0 and j["totals"]["unresolved"] < j0["totals"]["unresolved"]
     assert j["totals"]["emergency_cap"] == sum(max(0, w["capacity"] - 1) for w in j["wards"])
-    assert c.get("/api/ops/surge", params={"per_gap": 3}).status_code == 422
+    assert c.get("/api/ops/surge", params={"per_gap": 2}).status_code == 422
     p = c.get("/api/plan", params={"date": "2025-07-07", "floor_beds_per_gap": 1}).json()["plans"]
     assert all("emergency_beds" in x["overflow"] for x in p)
     assert sum(x["overflow"]["emergency_beds"] for x in p) >= 1

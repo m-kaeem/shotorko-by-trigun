@@ -23,8 +23,8 @@
       life: "Minimum for every ward", lifeHelp: "guaranteed share of each supply before priority sharing (0% = off)",
       real: "Or type what's in the warehouse", realNote: "Real counts replace the stock slider for that item.", clear: "Clear",
       reset: "Reset", resetAll: "Reset all", resetTip: "Back to the default setting", clearReserve: "Clear reserve beds",
-      bed: "Floor beds between beds", gapOpts: ["Off", "1 per gap", "2 per gap"],
-      bedHelp: "A mattress goes in the space between two beds. Beds stand in a row, so a ward with 4 beds has 3 gaps.",
+      bed: "Floor beds between beds", gapOpts: ["Off", "On (1 per gap)"],
+      bedHelp: "One mattress goes in the space between two beds (only one fits, so nurses can still reach patients). A ward with 4 beds in a row has 3 gaps.",
       gapEx: (b, g, n) => `${b} beds → ${g} gaps → up to ${n} floor beds`,
       bedNote: "Used after patients are moved to empty real beds in the city, and before reserve beds. For the ward's own patients only. It's crowded, so it's a last resort.",
       onFloor: "on floor beds", floorOf: (u, c) => `${u} of ${c} floor spaces used`, useBedding: "Use floor beds between beds",
@@ -91,8 +91,8 @@
       life: "প্রতিটি ওয়ার্ডের ন্যূনতম", lifeHelp: "অগ্রাধিকার অনুযায়ী ভাগের আগে প্রতিটি জিনিসের নিশ্চিত অংশ (০% = বন্ধ)",
       real: "অথবা গুদামে আসলে কত আছে লিখুন", realNote: "আসল সংখ্যা দিলে ওই জিনিসের জন্য স্টক স্লাইডার আর লাগবে না।", clear: "মুছুন",
       reset: "রিসেট", resetAll: "সব রিসেট", resetTip: "ডিফল্ট সেটিংয়ে ফিরুন", clearReserve: "সংরক্ষিত বেড মুছুন",
-      bed: "দুই বেডের মাঝখানের বিছানা", gapOpts: ["বন্ধ", "প্রতি ফাঁকে ১টি", "প্রতি ফাঁকে ২টি"],
-      bedHelp: "দুই বেডের মাঝের জায়গায় একটি তোষক রাখা হয়। বেড এক সারিতে থাকে, তাই ৪টি বেডের ওয়ার্ডে ৩টি ফাঁক।",
+      bed: "দুই বেডের মাঝখানের বিছানা", gapOpts: ["বন্ধ", "চালু (প্রতি ফাঁকে ১টি)"],
+      bedHelp: "দুই বেডের মাঝের জায়গায় একটিই তোষক রাখা হয় (যাতে নার্সরা রোগীর কাছে যেতে পারেন)। ৪টি বেড এক সারিতে থাকলে ৩টি ফাঁক।",
       gapEx: (b, g, n) => `${b}টি বেড → ${g}টি ফাঁক → সর্বোচ্চ ${n}টি মেঝের বিছানা`,
       bedNote: "শহরের খালি আসল বেডে রোগী পাঠানোর পরে, আর সংরক্ষিত বেডের আগে ব্যবহার হয়। শুধু ওই ওয়ার্ডের নিজের রোগীদের জন্য। ভিড় হয়, তাই এটা শেষ উপায়।",
       onFloor: "জন মেঝের বিছানায়", floorOf: (u, c) => `${c}টির মধ্যে ${u}টি মেঝের জায়গা ব্যবহৃত`, useBedding: "বেডের মাঝখানের বিছানা ব্যবহার করুন",
@@ -357,10 +357,7 @@
       if (i < n - 1) {
         const gx = x + bw + 4, gwid = gw - 8;
         if (per === 0) svg += `<rect x="${gx}" y="${y0 + 8}" width="${gwid}" height="${bh - 16}" rx="4" class="gf-gap"/>`;
-        else for (let k = 0; k < per; k++) {
-          const hh = per === 1 ? bh - 16 : (bh - 20) / 2;
-          svg += `<rect x="${gx}" y="${y0 + 8 + k * (hh + 4)}" width="${gwid}" height="${hh}" rx="4" class="gf-mat"/>`;
-        }
+        else svg += `<rect x="${gx}" y="${y0 + 8}" width="${gwid}" height="${bh - 16}" rx="4" class="gf-mat"/>`;
       }
     }
     const W = x0 * 2 + n * bw + (n - 1) * gw;

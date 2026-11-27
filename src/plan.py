@@ -77,7 +77,7 @@ def build_plans(engine, date: str, h: int, stock_pct: float = 100.0, total_crews
     floating_beds (optional, Phase 2 extra): reserve beds per city, {city: beds} or one int for every
     city. They are opened, after transfers, at wards whose patients the city's beds can't take.
     min_share_pct (optional): lifeline, 0-50. Every ward first gets at least this % of each supply.
-    floor_beds_per_gap (optional): 0-2 mattresses in each gap between two beds ((beds - 1) gaps per ward)."""
+    floor_beds_per_gap (optional): 1 = one mattress in each gap between two beds ((beds - 1) gaps per ward), 0 = off."""
     if h not in C.HORIZONS:
         raise ValueError("h must be 2, 3 or 4")
     total_crews = int(total_crews)
@@ -86,8 +86,8 @@ def build_plans(engine, date: str, h: int, stock_pct: float = 100.0, total_crews
     _ENGINES[id(engine)] = engine
     fc = _forecast(id(engine), str(date), int(h), _scenario_key(scenario)).copy()
 
-    if int(floor_beds_per_gap) not in (0, 1, 2):
-        raise ValueError("floor_beds_per_gap must be 0, 1 or 2")
+    if int(floor_beds_per_gap) not in (0, 1):
+        raise ValueError("floor_beds_per_gap must be 0 or 1")
     if not 0 <= float(min_share_pct) <= 50:
         raise ValueError("min_share_pct must be between 0 and 50")
     alloc = allocate(fc, stock_pct=float(stock_pct) / 100.0, crews=total_crews, basis="expected",
