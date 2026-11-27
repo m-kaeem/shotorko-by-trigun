@@ -158,3 +158,55 @@ def test_floating_beds_endpoint(monkeypatch):
     assert g["unresolved"] == 0 and g["floating_used"] == g0["unresolved"]
     assert c.get("/api/ops/surge", params={"floating": "Atlantis:2"}).status_code == 400
     assert c.get("/api/ops/surge", params={"floating": "Gazipur:x"}).status_code == 400
+
+
+@pytest.mark.parametrize("policy", ["weighted", "strict"])
+def test_lifeline_removes_critical_deficits_when_stock_allows(policy):
+    fc = pd.concat([_fc()] * 6, ignore_index=True)
+    fc["ward_id"] = [f"W{i}" for i in range(len(fc))]
+    out = allocate(fc, stock_pct=0.6, crews=10, policy=policy, min_share=0.5)
+    assert out["n_critical"] == 0
+    for w in out["wards"]:
+        for k in SUPPLY_COLS:
+            assert w[k]["allocated"] * 2 >= w[k]["required"]
+    for k in SUPPLY_COLS:
+        assert out["items"][k]["allocated"] <= out["items"][k]["stock"]
+    without = allocate(fc, stock_pct=0.6, crews=10, policy=policy)
+    assert without["n_critical"] > 0
+
+
+def test_lifeline_that_does_not_fit_shares_equally():
+    out = allocate(_fc(), stock_pct=0.3, crews=0, min_share=0.5)
+    for k in SUPPLY_COLS:
+        assert out["items"][k]["allocated"] == out["items"][k]["stock"]
+    fills = [w["saline_bags_needed"]["allocated"] / w["saline_bags_needed"]["required"] for w in out["wards"]]
+    assert max(fills) - min(fills) < 0.35          # equal shares, up to whole-bag rounding
+
+
+@pytest.mark.parametrize("min_share", [0.0, 0.3])
+def test_what_it_takes_is_exact(min_share):
+    """The suggested stock clears every critical deficit, and one unit less does not."""
+    fc = pd.concat([_fc()] * 6, ignore_index=True)
+    fc["ward_id"] = [f"W{i}" for i in range(len(fc))]
+    out = allocate(fc, stock_pct=0.4, crews=0, min_share=min_share)
+    assert out["fix"]["needed"]
+    units = {k: v["stock_to_clear_critical"] for k, v in out["items"].items()}
+    assert allocate(fc, crews=0, min_share=min_share, stock_units=units)["n_critical"] == 0
+    for k in SUPPLY_COLS:
+        if units[k] > 0:
+            less = dict(units, **{k: units[k] - 1})
+            assert allocate(fc, crews=0, min_share=min_share, stock_units=less)["n_critical"] > 0
+
+
+def test_real_counts_endpoint():
+    from fastapi.testclient import TestClient
+    from src.api import app
+    c = TestClient(app)
+    j = c.get("/api/ops/allocate", params={"date": "2025-07-07", "saline_stock": 900, "kits_stock": 500,
+                                           "beds_stock": 120, "min_share": 0.2}).json()
+    assert j["items"]["saline_bags_needed"]["stock"] == 900 and j["items"]["saline_bags_needed"]["allocated"] == 900
+    assert j["items"]["hospital_beds_required"]["allocated"] == 120 and j["min_share"] == 0.2
+    assert c.get("/api/ops/allocate", params={"saline_stock": -1}).status_code == 422
+    assert c.get("/api/ops/allocate", params={"min_share": 0.9}).status_code == 422
+    r = c.get("/api/plan", params={"date": "2025-07-07", "stock_pct": 60, "min_share_pct": 50})
+    assert r.status_code == 200 and all(p["deficit_level"] != "critical" for p in r.json()["plans"])
