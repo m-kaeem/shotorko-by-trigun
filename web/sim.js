@@ -38,6 +38,13 @@
       check: "Is the simulator's model trustworthy?", checkSub: "Out-of-sample check on 2024–25 test weeks, plus what the raw data says.",
       dose: (k, c, m) => `Keep ${k}% of breeding water → forecast ${c}% (${m}% of ward-weeks never go up)`,
       dataLine: (r, w) => `Data: 4-week rain vs cases 3 weeks later, Spearman ${r}; ward water-logging vs mean cases, ${w}.`,
+      season: "Season backtest: would this plan have beaten the usual rule?",
+      seasonSub: (n, c) => `Every week of the 2024 and 2025 seasons (${n} weeks, never seen in training), ${c} crews a week, planned four ways and scored with the same model.`,
+      pol: { shotorko: "Shotorko auto-plan", shotorko_larvicide: "Shotorko, larvicide only", tier_rule: "Tier rule (1/2/3 crews by risk)", top_cases: "Most forecast cases first" },
+      seasonHead: (x, y) => `Same crews, ${x}% more cases prevented than the tier rule. Choosing where alone (larvicide only) gives +${y}%.`,
+      seasonWeeks: (a, n) => `Shotorko's plan was best in ${a} of ${n} weeks.`,
+      seasonNote: "Model-based comparison of plans, each week scored on its own 2–4 week window; not a measured field result.",
+      prevented: "cases prevented",
       checkNote: "The model learned the direction the evidence expects: less standing water, fewer cases. The few ward-weeks that tick up are tree-model noise and are floored at zero in the simulator.",
     },
     bn: {
@@ -69,6 +76,13 @@
       check: "সিমুলেটরের মডেল কি বিশ্বাসযোগ্য?", checkSub: "২০২৪–২৫ এর পরীক্ষার সপ্তাহে যাচাই, আর মূল ডেটা কী বলে।",
       dose: (k, c, m) => `জমা পানি ${k}% রাখলে → পূর্বাভাস ${c}% (${m}% ওয়ার্ড-সপ্তাহে বাড়ে না)`,
       dataLine: (r, w) => `ডেটা: ৪ সপ্তাহের বৃষ্টি বনাম ৩ সপ্তাহ পরের রোগী, Spearman ${r}; জলাবদ্ধতা বনাম গড় রোগী, ${w}।`,
+      season: "মৌসুম যাচাই: এই পরিকল্পনা কি প্রচলিত নিয়মের চেয়ে ভালো হতো?",
+      seasonSub: (n, c) => `২০২৪ ও ২০২৫ মৌসুমের প্রতিটি সপ্তাহ (${n} সপ্তাহ, প্রশিক্ষণে দেখা হয়নি), প্রতি সপ্তাহে ${c}টি দল, চারভাবে পরিকল্পনা করে একই মডেলে যাচাই।`,
+      pol: { shotorko: "শতর্ক স্বয়ংক্রিয় পরিকল্পনা", shotorko_larvicide: "শতর্ক, শুধু লার্ভিসাইড", tier_rule: "ঝুঁকি নিয়ম (১/২/৩ দল)", top_cases: "বেশি রোগী আগে" },
+      seasonHead: (x, y) => `একই দলে প্রচলিত নিয়মের চেয়ে ${x}% বেশি রোগী ঠেকানো যায়। শুধু কোথায় পাঠাবেন বেছে নিলেই (শুধু লার্ভিসাইড) +${y}%।`,
+      seasonWeeks: (a, n) => `${n} সপ্তাহের মধ্যে ${a} সপ্তাহে শতর্কের পরিকল্পনা সেরা ছিল।`,
+      seasonNote: "মডেল-ভিত্তিক তুলনা, প্রতিটি সপ্তাহ নিজের ২–৪ সপ্তাহে যাচাই; মাঠের মাপা ফল নয়।",
+      prevented: "রোগী ঠেকানো",
       checkNote: "মডেল প্রমাণের সাথে মেলে এমন দিক শিখেছে: জমা পানি কম, রোগী কম। যে অল্প কিছু ওয়ার্ড-সপ্তাহ সামান্য বাড়ে তা ট্রি-মডেলের নয়েজ, সিমুলেটরে শূন্যে আটকানো।",
     },
   };
@@ -116,6 +130,7 @@
           <div class="sim-money" id="simMoney"></div><small class="ops-muted">${T.costSrc}</small></div>
         <div class="card"><h3 class="sec-title">${T.check}</h3><small class="ops-muted">${T.checkSub}</small><div id="simCheck" class="sim-check"></div></div>
       </div>
+      <div class="card" id="simSeasonCard"><h3 class="sec-title">${T.season}</h3><small class="ops-muted" id="simSeasonSub"></small><div id="simSeason" class="sim-season"></div></div>
       <div class="card"><div class="toolbar"><div><h3 class="sec-title">${T.rankTitle}</h3><small class="ops-muted">${T.rankSub}</small></div>
         <button class="btn" id="simCsv"><span>${T.csv}</span></button></div>
         <div class="ops-table-wrap"><table class="ops-table" id="simTable"></table></div></div>`;
@@ -192,6 +207,7 @@
     renderChart();
     renderMoney();
     renderCheck();
+    renderSeason();
     const sims = r.wards;
     $("#simTable").innerHTML = `<thead><tr>${T.cols.map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${r.roi_ranking.map((x) => {
       const d = V.dep[x.ward_id] || { larvicide: 0, indoor: 0 }, sm = sims[x.ward_id];
@@ -232,6 +248,38 @@
       box(T.bcr, loc(s.benefit_cost_ratio.toFixed(2)) + "×", s.benefit_cost_ratio >= 1 ? "#86EFAC" : "#FDE047"),
       box(T.perCase, s.cost_per_case_prevented_bdt != null ? tk(s.cost_per_case_prevented_bdt) : "–"),
     ].join("") : "";
+  }
+  async function renderSeason() {
+    const T = L(), POL = ["shotorko", "shotorko_larvicide", "tier_rule", "top_cases"];
+    const COL = { shotorko: "url(#simSG)", shotorko_larvicide: "#22D3EE", tier_rule: "#64748B", top_cases: "#475569" };
+    try {
+      if (V.season === undefined) V.season = await SK().api("/api/simulate/season").catch(() => null);
+      const r = V.season;
+      if (!r) { $("#simSeasonCard").style.display = "none"; return; }
+      $("#simSeasonSub").textContent = T.seasonSub(loc(r.n_weeks), loc(r.crews_per_week));
+      const max = Math.max(...POL.map((p) => r.all[p])), W = 560, rowH = 34;
+      const bars = POL.map((p, i) => {
+        const w = (r.all[p] / max) * (W - 250), y = 8 + i * rowH;
+        return `<text x="0" y="${y + 17}" class="sim-tx">${T.pol[p]}</text>
+          <rect x="190" y="${y + 4}" width="${w}" height="20" rx="6" fill="${COL[p]}"/>
+          <text x="${196 + w}" y="${y + 18}" class="sim-tl">${n0(r.all[p])}</text>`;
+      }).join("");
+      // weekly lines: shotorko vs tier rule
+      const wk = r.weeks, LW = 560, LH = 150, mx = Math.max(1, ...wk.map((x) => Math.max(x.shotorko, x.tier_rule)));
+      const pts = (k) => wk.map((x, i) => `${(i / Math.max(1, wk.length - 1)) * (LW - 20) + 10},${LH - 18 - (x[k] / mx) * (LH - 34)}`).join(" ");
+      const split = wk.findIndex((x) => x.season !== wk[0].season), sx = split > 0 ? (split / Math.max(1, wk.length - 1)) * (LW - 20) + 10 : null;
+      $("#simSeason").innerHTML = `<p class="sim-head">${T.seasonHead(loc(r.shotorko_vs_tier_rule_pct), loc(r.larvicide_only_vs_tier_rule_pct))} ${T.seasonWeeks(loc(r.shotorko_weeks_best), loc(r.n_weeks))}</p>
+        <div class="sim-season-grid">
+          <svg viewBox="0 0 ${W} ${8 + POL.length * rowH}" class="sim-svg" role="img" aria-label="${T.season}">
+            <defs><linearGradient id="simSG" x1="0" x2="1"><stop offset="0" stop-color="#22D3EE"/><stop offset="1" stop-color="#8B7CF6"/></linearGradient></defs>${bars}</svg>
+          <div><svg viewBox="0 0 ${LW} ${LH}" class="sim-svg" role="img" aria-label="weekly">
+            ${sx ? `<line x1="${sx}" x2="${sx}" y1="4" y2="${LH - 16}" stroke="#334155" stroke-dasharray="4 4"/>` : ""}
+            <text x="10" y="${LH - 2}" class="sim-tx">${wk[0].season}</text>${sx ? `<text x="${sx + 4}" y="${LH - 2}" class="sim-tx">${wk[split].season}</text>` : ""}
+            <polyline points="${pts("tier_rule")}" fill="none" stroke="#64748B" stroke-width="2"/>
+            <polyline points="${pts("shotorko")}" fill="none" stroke="#22D3EE" stroke-width="2.5"/></svg>
+            <div class="ops-legend"><span><i style="background:#22D3EE"></i>${T.pol.shotorko}</span><span><i style="background:#64748B"></i>${T.pol.tier_rule}</span><span>· ${T.prevented} / week</span></div></div>
+        </div><small class="ops-muted">${T.seasonNote}</small>`;
+    } catch (e) { $("#simSeason").textContent = e.message; }
   }
   async function renderCheck() {
     const T = L();

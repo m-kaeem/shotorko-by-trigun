@@ -512,6 +512,16 @@ def simulate_check():
     return SIM.model_check(ENGINE)
 
 
+@app.get("/api/simulate/season")
+def simulate_season():
+    """Precomputed 2024-25 season backtest: Shotorko crew plan vs the usual rules (artifacts/sim_season.json)."""
+    from .sim_season import load
+    res = load()
+    if res is None:
+        raise HTTPException(404, "season backtest not built yet: run python -m src.sim_season")
+    return res
+
+
 @app.get("/api/simulate/roi")
 def simulate_roi(date: str = "2025-07-07", crews: int = Query(1, ge=1, le=6)):
     """All 60 wards ranked by cases prevented per crew if `crews` crews were sent there."""

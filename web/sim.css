@@ -29,3 +29,6 @@
 .sim-check ul{margin:10px 0;padding-left:18px;line-height:1.7;font-size:13px}
 .sim-check p{font-size:13px;margin:6px 0 8px}
 @media (max-width:1100px){.sim-costs,.sim-money{grid-template-columns:1fr 1fr}}
+.sim-head{font-size:15px;line-height:1.5;margin:10px 0}
+.sim-season-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:center}
+@media (max-width:1100px){.sim-season-grid{grid-template-columns:1fr}}

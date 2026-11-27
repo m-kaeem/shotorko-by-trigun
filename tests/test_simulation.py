@@ -156,3 +156,11 @@ def test_api_costs_and_check(client):
                                            "costs": {"larvicide_crew_bdt": 50000}}).json()
     assert j["costs"]["larvicide_crew_bdt"] == 50000 and j["summary"]["crew_cost_bdt"] > 0
     assert client.get("/api/simulate/check").status_code == 200
+
+
+def test_season_backtest_artifact(client):
+    r = client.get("/api/simulate/season")
+    assert r.status_code == 200
+    j = r.json()
+    assert j["n_weeks"] >= 50 and set(j["all"]) == {"shotorko", "shotorko_larvicide", "tier_rule", "top_cases"}
+    assert j["all"]["shotorko"] >= j["all"]["shotorko_larvicide"] >= j["all"]["tier_rule"]
